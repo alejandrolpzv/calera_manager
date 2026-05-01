@@ -26,8 +26,10 @@ export async function POST(request: Request) {
       redirectTo: user.role === UserRole.ADMIN ? "/dashboard" : "/expenses",
     });
   } catch (error) {
+    console.error("Login failed", error);
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "No se pudo iniciar sesion." },
+      { error: "No se pudo conectar con la base de datos. Revisa DATABASE_URL en el deploy." },
       { status: 500 },
     );
   }
