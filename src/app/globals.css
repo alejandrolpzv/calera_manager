@@ -8,19 +8,71 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-plex-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #f7f3ec;
+  --foreground: #17212b;
+  --card: rgba(255, 255, 255, 0.82);
+  --muted: #5b6875;
+  --line: rgba(23, 33, 43, 0.08);
+  --accent: #0f766e;
+  --accent-strong: #115e59;
+  --highlight: #f59e0b;
+  --danger: #b91c1c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(245, 158, 11, 0.18), transparent 22%),
+    radial-gradient(circle at top right, rgba(15, 118, 110, 0.16), transparent 26%),
+    linear-gradient(180deg, #f8f5ef 0%, #f0e9dd 100%);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-manrope), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(15, 118, 110, 0.2);
+}
+
+.glass-panel {
+  background: var(--card);
+  backdrop-filter: blur(18px);
+  border: 1px solid var(--line);
+  box-shadow: 0 16px 48px rgba(59, 53, 41, 0.08);
+}
+
+.metric-gradient {
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.95), rgba(255, 247, 237, 0.86)),
+    linear-gradient(135deg, rgba(15, 118, 110, 0.12), transparent 55%);
+}
+
+.industrial-grid {
+  background-image:
+    linear-gradient(rgba(23, 33, 43, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 33, 43, 0.03) 1px, transparent 1px);
+  background-size: 26px 26px;
 }
