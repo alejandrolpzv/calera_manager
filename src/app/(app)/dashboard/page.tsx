@@ -19,11 +19,9 @@ export default async function DashboardPage() {
   const todayParam = format(today, "yyyy-MM-dd");
   const weekStartParam = format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd");
   const monthStartParam = format(startOfMonth(today), "yyyy-MM-dd");
-  const [dashboard, activity, inventory] = await Promise.all([
-    getDashboardData(),
-    getRecentActivity(),
-    getInventorySnapshot(),
-  ]);
+  const dashboard = await getDashboardData();
+  const activity = await getRecentActivity();
+  const inventory = await getInventorySnapshot();
 
   return (
     <>

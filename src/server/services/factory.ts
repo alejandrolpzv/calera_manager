@@ -308,20 +308,18 @@ function sumByDate<T extends { date: Date }>(
 }
 
 async function getRangeTotals(from: Date, to: Date) {
-  const [expenseAggregate, incomeAggregate, productionAggregate] = await Promise.all([
-    prisma.expense.aggregate({
-      _sum: { amount: true },
-      where: { date: { gte: from, lte: to } },
-    }),
-    prisma.income.aggregate({
-      _sum: { total: true, amountPaid: true },
-      where: { date: { gte: from, lte: to } },
-    }),
-    prisma.production.aggregate({
-      _sum: { quantity: true },
-      where: { date: { gte: from, lte: to } },
-    }),
-  ]);
+  const expenseAggregate = await prisma.expense.aggregate({
+    _sum: { amount: true },
+    where: { date: { gte: from, lte: to } },
+  });
+  const incomeAggregate = await prisma.income.aggregate({
+    _sum: { total: true, amountPaid: true },
+    where: { date: { gte: from, lte: to } },
+  });
+  const productionAggregate = await prisma.production.aggregate({
+    _sum: { quantity: true },
+    where: { date: { gte: from, lte: to } },
+  });
 
   const totalExpenses = decimalToNumber(expenseAggregate._sum.amount);
   const totalSales = decimalToNumber(incomeAggregate._sum.total);
@@ -585,23 +583,21 @@ export async function getRecentActivity() {
     return getLocalRecentActivity();
   }
 
-  const [expenses, incomes, productions] = await Promise.all([
-    prisma.expense.findMany({
-      take: 12,
-      orderBy: { date: "desc" },
-      include: { createdBy: true, payrollLines: true },
-    }),
-    prisma.income.findMany({
-      take: 12,
-      orderBy: { date: "desc" },
-      include: { createdBy: true, product: true, lines: { include: { product: true } } },
-    }),
-    prisma.production.findMany({
-      take: 12,
-      orderBy: { date: "desc" },
-      include: { createdBy: true, product: true },
-    }),
-  ]);
+  const expenses = await prisma.expense.findMany({
+    take: 12,
+    orderBy: { date: "desc" },
+    include: { createdBy: true, payrollLines: true },
+  });
+  const incomes = await prisma.income.findMany({
+    take: 12,
+    orderBy: { date: "desc" },
+    include: { createdBy: true, product: true, lines: { include: { product: true } } },
+  });
+  const productions = await prisma.production.findMany({
+    take: 12,
+    orderBy: { date: "desc" },
+    include: { createdBy: true, product: true },
+  });
 
   return {
     expenses: expenses.map((expense: ExpenseWithCreatedByAndPayroll) => ({
@@ -671,6 +667,22 @@ export async function getRecentActivity() {
   };
 }
 
+async function resolveTopProducts(
+  productGroups: Array<{ productId: string; _sum: { quantity: Prisma.Decimal | null } }>,
+) {
+  const products = [];
+
+  for (const item of productGroups) {
+    const product = await prisma.product.findUnique({ where: { id: item.productId } });
+    products.push({
+      name: product?.name || "Desconocido",
+      quantity: decimalToNumber(item._sum.quantity),
+    });
+  }
+
+  return products;
+}
+
 export async function getDashboardData() {
   noStore();
 
@@ -685,65 +697,50 @@ export async function getDashboardData() {
   const chartStart = subDays(now, 13);
   const chartDays = eachDayOfInterval({ start: chartStart, end: now });
 
-  const [
-    weekly,
-    monthly,
-    expenseCategoryGroups,
-    recentExpenses,
-    recentIncome,
-    recentProduction,
-    topClientGroups,
-    topProductGroups,
-    lowStockRaw,
-    pendingReceivablesAggregate,
-    pendingReceivablesCount,
-  ] =
-    await Promise.all([
-      getRangeTotals(weekStart, now),
-      getRangeTotals(monthStart, now),
-      prisma.expense.groupBy({
-        by: ["category"],
-        _sum: { amount: true },
-        where: { date: { gte: monthStart, lte: monthEnd } },
-      }),
-      prisma.expense.findMany({
-        where: { date: { gte: chartStart, lte: now } },
-        orderBy: { date: "asc" },
-      }),
-      prisma.income.findMany({
-        where: { date: { gte: chartStart, lte: now } },
-        orderBy: { date: "asc" },
-      }),
-      prisma.production.findMany({
-        where: { date: { gte: chartStart, lte: now } },
-        orderBy: { date: "asc" },
-      }),
-      prisma.income.groupBy({
-        by: ["clientName"],
-        _sum: { total: true },
-        orderBy: { _sum: { total: "desc" } },
-        take: 5,
-      }),
-      prisma.incomeLine.groupBy({
-        by: ["productId"],
-        _sum: { quantity: true },
-        orderBy: { _sum: { quantity: "desc" } },
-        take: 5,
-      }),
-      prisma.inventory.findMany({
-        where: { quantity: { lte: 10 } },
-        include: { product: true },
-        orderBy: { quantity: "asc" },
-        take: 5,
-      }),
-      prisma.income.aggregate({
-        _sum: { total: true, amountPaid: true },
-        where: { OR: [{ paymentStatus: "PENDING" }, { paymentStatus: "PARTIAL" }] },
-      }),
-      prisma.income.count({
-        where: { OR: [{ paymentStatus: "PENDING" }, { paymentStatus: "PARTIAL" }] },
-      }),
-    ]);
+  const weekly = await getRangeTotals(weekStart, now);
+  const monthly = await getRangeTotals(monthStart, now);
+  const expenseCategoryGroups = await prisma.expense.groupBy({
+    by: ["category"],
+    _sum: { amount: true },
+    where: { date: { gte: monthStart, lte: monthEnd } },
+  });
+  const recentExpenses = await prisma.expense.findMany({
+    where: { date: { gte: chartStart, lte: now } },
+    orderBy: { date: "asc" },
+  });
+  const recentIncome = await prisma.income.findMany({
+    where: { date: { gte: chartStart, lte: now } },
+    orderBy: { date: "asc" },
+  });
+  const recentProduction = await prisma.production.findMany({
+    where: { date: { gte: chartStart, lte: now } },
+    orderBy: { date: "asc" },
+  });
+  const topClientGroups = await prisma.income.groupBy({
+    by: ["clientName"],
+    _sum: { total: true },
+    orderBy: { _sum: { total: "desc" } },
+    take: 5,
+  });
+  const topProductGroups = await prisma.incomeLine.groupBy({
+    by: ["productId"],
+    _sum: { quantity: true },
+    orderBy: { _sum: { quantity: "desc" } },
+    take: 5,
+  });
+  const lowStockRaw = await prisma.inventory.findMany({
+    where: { quantity: { lte: 10 } },
+    include: { product: true },
+    orderBy: { quantity: "asc" },
+    take: 5,
+  });
+  const pendingReceivablesAggregate = await prisma.income.aggregate({
+    _sum: { total: true, amountPaid: true },
+    where: { OR: [{ paymentStatus: "PENDING" }, { paymentStatus: "PARTIAL" }] },
+  });
+  const pendingReceivablesCount = await prisma.income.count({
+    where: { OR: [{ paymentStatus: "PENDING" }, { paymentStatus: "PARTIAL" }] },
+  });
 
   const expenseSeries = sumByDate<(typeof recentExpenses)[number]>(
     recentExpenses,
@@ -784,15 +781,7 @@ export async function getDashboardData() {
         name: item.clientName,
         total: decimalToNumber(item._sum.total),
       })),
-      topProducts: await Promise.all(
-        topProductGroups.map(async (item) => {
-          const product = await prisma.product.findUnique({ where: { id: item.productId } });
-          return {
-            name: product?.name || "Desconocido",
-            quantity: decimalToNumber(item._sum.quantity),
-          };
-        }),
-      ),
+      topProducts: await resolveTopProducts(topProductGroups),
       lowStock: lowStockRaw.map((item) => ({
         productName: item.product.name,
         quantity: decimalToNumber(item.quantity),
@@ -825,14 +814,18 @@ export async function getHistoryData(filters: HistoryFilters) {
   const from = filters.from ? asDate(filters.from) : undefined;
   const to = filters.to ? asDate(filters.to, true) : undefined;
   const q = filters.q?.trim() || undefined;
+  const expenseCategory = filters.expenseCategory?.trim()
+    ? (filters.expenseCategory as ExpenseCategory)
+    : undefined;
+  const productId = filters.productId?.trim() || undefined;
 
-  const [expenses, income, production] = await Promise.all([
+  const expenses =
     filters.type === "income" || filters.type === "production"
-      ? Promise.resolve([])
-      : prisma.expense.findMany({
+      ? []
+      : await prisma.expense.findMany({
           where: {
             date: from || to ? { gte: from, lte: to } : undefined,
-            category: filters.expenseCategory as ExpenseCategory | undefined,
+            category: expenseCategory,
             OR: q
               ? [
                   { description: { contains: q, mode: "insensitive" } },
@@ -851,21 +844,22 @@ export async function getHistoryData(filters: HistoryFilters) {
             payrollLines: true,
           },
           orderBy: { date: "desc" },
-        }),
+        });
+  const income =
     filters.type === "expense" || filters.type === "production"
-      ? Promise.resolve([])
-      : prisma.income.findMany({
+      ? []
+      : await prisma.income.findMany({
           where: {
             date: from || to ? { gte: from, lte: to } : undefined,
-            AND: filters.productId
+            AND: productId
               ? [
                   {
                     OR: [
-                      { productId: filters.productId },
+                      { productId },
                       {
                         lines: {
                           some: {
-                            productId: filters.productId,
+                            productId,
                           },
                         },
                       },
@@ -888,13 +882,14 @@ export async function getHistoryData(filters: HistoryFilters) {
             lines: { include: { product: true } },
           },
           orderBy: { date: "desc" },
-        }),
+        });
+  const production =
     filters.type === "expense" || filters.type === "income"
-      ? Promise.resolve([])
-      : prisma.production.findMany({
+      ? []
+      : await prisma.production.findMany({
           where: {
             date: from || to ? { gte: from, lte: to } : undefined,
-            productId: filters.productId || undefined,
+            productId,
             OR: q
               ? [
                   { notes: { contains: q, mode: "insensitive" } },
@@ -907,8 +902,7 @@ export async function getHistoryData(filters: HistoryFilters) {
             product: true,
           },
           orderBy: { date: "desc" },
-        }),
-  ]);
+        });
 
   const mappedExpenses = expenses.map((item: ExpenseWithCreatedByAndPayroll) => ({
     id: item.id,
@@ -1016,25 +1010,23 @@ export async function getReportData(from: string, to: string) {
   const start = asDate(from);
   const end = asDate(to, true);
 
-  const [summary, expenses, income, production, inventory] = await Promise.all([
-    getRangeTotals(start, end),
-    prisma.expense.findMany({
-      where: { date: { gte: start, lte: end } },
-      include: { createdBy: true, payrollLines: true },
-      orderBy: { date: "desc" },
-    }),
-    prisma.income.findMany({
-      where: { date: { gte: start, lte: end } },
-      include: { createdBy: true, product: true, lines: { include: { product: true } } },
-      orderBy: { date: "desc" },
-    }),
-    prisma.production.findMany({
-      where: { date: { gte: start, lte: end } },
-      include: { createdBy: true, product: true },
-      orderBy: { date: "desc" },
-    }),
-    getInventorySnapshot(),
-  ]);
+  const summary = await getRangeTotals(start, end);
+  const expenses = await prisma.expense.findMany({
+    where: { date: { gte: start, lte: end } },
+    include: { createdBy: true, payrollLines: true },
+    orderBy: { date: "desc" },
+  });
+  const income = await prisma.income.findMany({
+    where: { date: { gte: start, lte: end } },
+    include: { createdBy: true, product: true, lines: { include: { product: true } } },
+    orderBy: { date: "desc" },
+  });
+  const production = await prisma.production.findMany({
+    where: { date: { gte: start, lte: end } },
+    include: { createdBy: true, product: true },
+    orderBy: { date: "desc" },
+  });
+  const inventory = await getInventorySnapshot();
 
   return {
     from,
