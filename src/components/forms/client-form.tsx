@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,6 +25,7 @@ export function ClientForm({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const savingRef = useRef(false);
   const isEditing = Boolean(initialValues?.id);
 
   return (
@@ -39,6 +40,11 @@ export function ClientForm({
       <form
         className="mt-6 space-y-4"
         action={async (formData) => {
+          if (savingRef.current) {
+            return;
+          }
+
+          savingRef.current = true;
           setLoading(true);
           setError("");
           setSuccess("");
@@ -60,10 +66,10 @@ export function ClientForm({
           );
 
           const result = await response.json();
-          setLoading(false);
-
           if (!response.ok) {
             setError(result.error || "No se pudo guardar el cliente.");
+            savingRef.current = false;
+            setLoading(false);
             return;
           }
 
@@ -72,6 +78,8 @@ export function ClientForm({
             router.replace("/clients");
           }
           router.refresh();
+          savingRef.current = false;
+          setLoading(false);
         }}
       >
         <div>

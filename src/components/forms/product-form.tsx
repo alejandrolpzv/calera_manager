@@ -2,7 +2,7 @@
 
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,14 +21,21 @@ export function ProductForm({ products }: { products: Product[] }) {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState("");
+  const savingRef = useRef(false);
+  const deletingRef = useRef(false);
 
   async function onDeleteProduct(productId: string) {
+    if (deletingRef.current) {
+      return;
+    }
+
     const confirmed = window.confirm("¿Seguro que quieres eliminar este producto?");
 
     if (!confirmed) {
       return;
     }
 
+    deletingRef.current = true;
     setDeletingId(productId);
     setError("");
     setSuccess("");
@@ -39,6 +46,7 @@ export function ProductForm({ products }: { products: Product[] }) {
 
     const result = await response.json().catch(() => ({ error: "No se pudo eliminar el producto." }));
     setDeletingId("");
+    deletingRef.current = false;
 
     if (!response.ok) {
       setError(result.error || "No se pudo eliminar el producto.");
@@ -57,6 +65,11 @@ export function ProductForm({ products }: { products: Product[] }) {
       <form
         className="mt-6 space-y-4"
         action={async (formData) => {
+          if (savingRef.current) {
+            return;
+          }
+
+          savingRef.current = true;
           setLoading(true);
           setError("");
           setSuccess("");
@@ -71,10 +84,10 @@ export function ProductForm({ products }: { products: Product[] }) {
           });
 
           const result = await response.json();
-          setLoading(false);
-
           if (!response.ok) {
             setError(result.error || "No se pudo crear el producto.");
+            savingRef.current = false;
+            setLoading(false);
             return;
           }
 
@@ -83,6 +96,8 @@ export function ProductForm({ products }: { products: Product[] }) {
             window.sessionStorage.setItem("newIncomeProductId", String(result.productId));
           }
           router.refresh();
+          savingRef.current = false;
+          setLoading(false);
         }}
       >
         <div>

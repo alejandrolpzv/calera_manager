@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,7 @@ export function ExpenseForm({
   const [manualAmount, setManualAmount] = useState<string>(
     initialValues ? String(initialValues.amount) : "",
   );
+  const savingRef = useRef(false);
   const [payrollLines, setPayrollLines] = useState<PayrollLine[]>(
     initialValues?.payrollLines?.length
         ? initialValues.payrollLines.map((line) => ({
@@ -223,6 +224,11 @@ export function ExpenseForm({
       <form
         className="mt-6 space-y-4"
         action={async (formData) => {
+          if (savingRef.current) {
+            return;
+          }
+
+          savingRef.current = true;
           setLoading(true);
           setError("");
           setSuccess("");
@@ -255,10 +261,10 @@ export function ExpenseForm({
           });
 
           const result = await response.json();
-          setLoading(false);
-
           if (!response.ok) {
             setError(result.error || "No se pudo guardar el gasto.");
+            savingRef.current = false;
+            setLoading(false);
             return;
           }
 
@@ -267,6 +273,8 @@ export function ExpenseForm({
             router.replace("/expenses");
           }
           router.refresh();
+          savingRef.current = false;
+          setLoading(false);
         }}
       >
         <div>

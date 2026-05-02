@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type RecordRowActionsProps = {
   editId: string;
@@ -22,12 +22,17 @@ export function RecordRowActions({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const deletingRef = useRef(false);
 
   const params = new URLSearchParams(searchParams.toString());
   params.set("edit", editId);
   const editHref = `${editBasePath || pathname}?${params.toString()}`;
 
   async function onDelete() {
+    if (deletingRef.current) {
+      return;
+    }
+
     if (!deleteEndpoint) {
       return;
     }
@@ -38,6 +43,7 @@ export function RecordRowActions({
       return;
     }
 
+    deletingRef.current = true;
     setLoading(true);
 
     const response = await fetch(deleteEndpoint, {
@@ -45,6 +51,7 @@ export function RecordRowActions({
     });
 
     setLoading(false);
+    deletingRef.current = false;
 
     if (!response.ok) {
       const result = await response.json().catch(() => ({ error: "No se pudo eliminar." }));

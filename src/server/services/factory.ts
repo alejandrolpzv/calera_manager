@@ -670,17 +670,15 @@ export async function getRecentActivity() {
 async function resolveTopProducts(
   productGroups: Array<{ productId: string; _sum: { quantity: Prisma.Decimal | null } }>,
 ) {
-  const products = [];
+  const products = await prisma.product.findMany({
+    where: { id: { in: productGroups.map((item) => item.productId) } },
+  });
+  const productNames = new Map(products.map((product) => [product.id, product.name]));
 
-  for (const item of productGroups) {
-    const product = await prisma.product.findUnique({ where: { id: item.productId } });
-    products.push({
-      name: product?.name || "Desconocido",
-      quantity: decimalToNumber(item._sum.quantity),
-    });
-  }
-
-  return products;
+  return productGroups.map((item) => ({
+    name: productNames.get(item.productId) || "Desconocido",
+    quantity: decimalToNumber(item._sum.quantity),
+  }));
 }
 
 export async function getDashboardData() {

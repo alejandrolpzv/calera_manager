@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { PaymentStatus } from "@prisma/client";
 
@@ -80,6 +80,7 @@ export function IncomeForm({
   const [allowInvoiceCreation, setAllowInvoiceCreation] = useState(
     initialValues?.sourceApp === "cotizador-cdh",
   );
+  const savingRef = useRef(false);
   const isEditing = Boolean(initialValues?.id);
 
   useEffect(() => {
@@ -150,6 +151,11 @@ export function IncomeForm({
       <form
         className="mt-6 space-y-4"
         action={async (formData) => {
+          if (savingRef.current) {
+            return;
+          }
+
+          savingRef.current = true;
           setLoading(true);
           setError("");
           setSuccess("");
@@ -186,10 +192,11 @@ export function IncomeForm({
           });
 
           const result = await response.json();
-          setLoading(false);
 
           if (!response.ok) {
             setError(result.error || "No se pudo guardar la venta.");
+            savingRef.current = false;
+            setLoading(false);
             return;
           }
 
@@ -200,6 +207,8 @@ export function IncomeForm({
             return;
           }
           router.refresh();
+          savingRef.current = false;
+          setLoading(false);
         }}
       >
         <div>

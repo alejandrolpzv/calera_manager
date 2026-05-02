@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
@@ -25,8 +25,14 @@ export function PaymentActions({
   const [paymentNotes, setPaymentNotes] = useState("");
   const [loading, setLoading] = useState<"partial" | "paid" | null>(null);
   const [error, setError] = useState("");
+  const savingRef = useRef(false);
 
   async function updatePayment(markPaid: boolean) {
+    if (savingRef.current) {
+      return;
+    }
+
+    savingRef.current = true;
     setError("");
     setLoading(markPaid ? "paid" : "partial");
 
@@ -43,6 +49,7 @@ export function PaymentActions({
       }),
     });
     const result = await response.json();
+    savingRef.current = false;
     setLoading(null);
 
     if (!response.ok) {
