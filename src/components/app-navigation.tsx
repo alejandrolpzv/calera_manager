@@ -53,7 +53,6 @@ export function AppNavigation({ role }: { role: UserRole }) {
             <Link
               key={item.href}
               href={item.href}
-              prefetch={false}
               className={cn(
                 "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition",
                 active
@@ -83,7 +82,6 @@ export function AppNavigation({ role }: { role: UserRole }) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    prefetch={false}
                     onClick={() => setMenuOpen(false)}
                     className={cn(
                       "flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold transition",
@@ -110,7 +108,6 @@ export function AppNavigation({ role }: { role: UserRole }) {
               <Link
                 key={item.href}
                 href={item.href}
-                prefetch={false}
                 onClick={() => setMenuOpen(false)}
                 className={cn(
                   "flex min-w-0 flex-col items-center justify-center rounded-2xl px-1 py-2 text-[10px] font-bold transition",

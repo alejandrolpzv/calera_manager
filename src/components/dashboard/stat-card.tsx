@@ -54,7 +54,7 @@ export function StatCard({
   }
 
   return (
-    <Link href={href} className="block">
+    <Link href={href} className="block active:scale-[0.99]">
       {content}
     </Link>
   );

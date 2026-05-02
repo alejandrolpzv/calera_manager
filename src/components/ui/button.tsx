@@ -28,6 +28,7 @@ export function Button({
       type={type}
       className={cn(
         "inline-flex items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
+        "active:translate-y-px active:scale-[0.99]",
         variants[variant],
         className,
       )}
