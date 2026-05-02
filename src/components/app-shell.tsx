@@ -4,6 +4,7 @@ import { UserRole } from "@prisma/client";
 import { LogOut } from "lucide-react";
 
 import { AppNavigation } from "@/components/app-navigation";
+import { MobileQuickActions } from "@/components/mobile-quick-actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { appName, roleLabels } from "@/lib/constants";
@@ -52,6 +53,7 @@ export function AppShell({ role, name, children }: AppShellProps) {
 
         <main className="flex min-w-0 flex-col gap-5 md:gap-6">{children}</main>
       </div>
+      <MobileQuickActions role={role} />
     </div>
   );
 }

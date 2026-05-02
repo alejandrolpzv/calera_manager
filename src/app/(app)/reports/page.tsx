@@ -21,6 +21,26 @@ type ReportExpense = ReportData["expenses"][number];
 type ReportIncome = ReportData["income"][number];
 type ReportProduction = ReportData["production"][number];
 
+function groupTotals<T>(
+  records: T[],
+  getKey: (record: T) => string,
+  getValue: (record: T) => number,
+) {
+  return Object.values(
+    records.reduce<Record<string, { name: string; value: number }>>((acc, record) => {
+      const name = getKey(record);
+      const key = name.trim().toLowerCase() || "sin-clasificar";
+
+      if (!acc[key]) {
+        acc[key] = { name, value: 0 };
+      }
+
+      acc[key].value += getValue(record);
+      return acc;
+    }, {}),
+  ).sort((a, b) => b.value - a.value);
+}
+
 export default async function ReportsPage({
   searchParams,
 }: {
@@ -71,6 +91,38 @@ export default async function ReportsPage({
     ),
   ).sort((a, b) => b.amount - a.amount);
   const receivables = report.income.filter((item) => (item.balanceDue || 0) > 0);
+  const totalSales = report.summary.totalSales;
+  const totalCollected = report.summary.totalIncome;
+  const pendingTotal = report.income.reduce((sum, item) => sum + (item.balanceDue || 0), 0);
+  const collectionRate = totalSales > 0 ? (totalCollected / totalSales) * 100 : 0;
+  const expensesByCategory = groupTotals(
+    report.expenses,
+    (item) => item.category,
+    (item) => item.amount,
+  );
+  const productionByProduct = groupTotals(
+    report.production,
+    (item) => item.productName,
+    (item) => item.quantity,
+  );
+  const lowStockItems = report.inventory.filter((item) => item.quantity <= 10);
+  const executiveAlerts = [
+    pendingTotal > 0
+      ? `${formatCurrency(pendingTotal)} pendiente de cobro en ${receivables.length} factura${receivables.length === 1 ? "" : "s"}.`
+      : "",
+    report.summary.profit < 0
+      ? `La utilidad de caja esta negativa por ${formatCurrency(Math.abs(report.summary.profit))}.`
+      : "",
+    report.summary.totalProduction <= 0
+      ? "No hay produccion registrada en este rango."
+      : "",
+    lowStockItems.length
+      ? `${lowStockItems.length} producto${lowStockItems.length === 1 ? "" : "s"} con stock bajo.`
+      : "",
+    totalSales > 0 && collectionRate < 50
+      ? `Solo se ha cobrado ${formatNumber(collectionRate)}% de lo facturado.`
+      : "",
+  ].filter(Boolean);
 
   return (
     <>
@@ -122,14 +174,82 @@ export default async function ReportsPage({
         </form>
       </Card>
 
+      <Card className="overflow-hidden p-4 sm:p-5">
+        <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr] xl:items-start">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-teal-700">
+              Reporte ejecutivo
+            </p>
+            <h3 className="mt-2 text-2xl font-extrabold text-slate-950">
+              Estado de la planta
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Lectura rapida para decidir: caja cobrada, ventas facturadas, pendientes,
+              gastos, produccion, costo por unidad y alertas operativas del rango.
+            </p>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-3xl bg-white/80 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Facturado</p>
+                <p className="mt-2 text-2xl font-black text-slate-950">{formatCurrency(totalSales)}</p>
+              </div>
+              <div className="rounded-3xl bg-teal-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-700">Cobrado</p>
+                <p className="mt-2 text-2xl font-black text-teal-900">{formatCurrency(totalCollected)}</p>
+              </div>
+              <div className="rounded-3xl bg-amber-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-700">Pendiente</p>
+                <p className="mt-2 text-2xl font-black text-amber-900">{formatCurrency(pendingTotal)}</p>
+              </div>
+              <div className="rounded-3xl bg-white/80 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Gastos</p>
+                <p className="mt-2 text-2xl font-black text-slate-950">{formatCurrency(report.summary.totalExpenses)}</p>
+              </div>
+              <div className="rounded-3xl bg-white/80 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Utilidad caja</p>
+                <p className="mt-2 text-2xl font-black text-slate-950">{formatCurrency(report.summary.profit)}</p>
+              </div>
+              <div className="rounded-3xl bg-white/80 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Costo / unidad</p>
+                <p className="mt-2 text-2xl font-black text-slate-950">{formatCurrency(report.summary.costPerUnit)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[28px] bg-slate-950 p-4 text-white">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+              Alertas
+            </p>
+            <div className="mt-4 space-y-3">
+              {executiveAlerts.length ? (
+                executiveAlerts.map((alert) => (
+                  <div key={alert} className="rounded-2xl bg-white/10 p-3 text-sm leading-5">
+                    {alert}
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl bg-teal-500/20 p-3 text-sm leading-5 text-teal-50">
+                  Sin alertas criticas en este rango.
+                </div>
+              )}
+            </div>
+            <div className="mt-4 rounded-2xl bg-white/10 p-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Cobranza</p>
+              <p className="mt-2 text-xl font-black">{formatNumber(collectionRate)}%</p>
+              <p className="text-xs text-slate-300">de ventas facturadas cobradas</p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Card className="p-5">
           <p className="text-sm font-semibold text-slate-500">Gastos</p>
           <p className="mt-2 text-2xl font-extrabold">{formatCurrency(report.summary.totalExpenses)}</p>
         </Card>
         <Card className="p-5">
-          <p className="text-sm font-semibold text-slate-500">Ingresos</p>
-          <p className="mt-2 text-2xl font-extrabold">{formatCurrency(report.summary.totalIncome)}</p>
+          <p className="text-sm font-semibold text-slate-500">Cobrado</p>
+          <p className="mt-2 text-2xl font-extrabold">{formatCurrency(totalCollected)}</p>
         </Card>
         <Card className="p-5">
           <p className="text-sm font-semibold text-slate-500">Utilidad</p>
@@ -224,6 +344,60 @@ export default async function ReportsPage({
                 <p className="mt-2 text-sm font-semibold">{formatNumber(item.quantity)}</p>
               </div>
             ))}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card className="p-5">
+          <h3 className="text-lg font-bold">Gastos por categoria</h3>
+          <div className="mt-4 space-y-3">
+            {expensesByCategory.length ? (
+              expensesByCategory.map((item) => (
+                <div key={item.name} className="rounded-2xl bg-white/80 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-slate-800">{item.name}</p>
+                    <p className="font-bold text-slate-950">{formatCurrency(item.value)}</p>
+                  </div>
+                  <div className="mt-3 h-2 rounded-full bg-slate-100">
+                    <div
+                      className="h-2 rounded-full bg-amber-500"
+                      style={{
+                        width: `${Math.min(100, report.summary.totalExpenses ? (item.value / report.summary.totalExpenses) * 100 : 0)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-slate-500">No hay gastos en este rango.</p>
+            )}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <h3 className="text-lg font-bold">Produccion por producto</h3>
+          <div className="mt-4 space-y-3">
+            {productionByProduct.length ? (
+              productionByProduct.map((item) => (
+                <div key={item.name} className="rounded-2xl bg-white/80 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-slate-800">{item.name}</p>
+                    <p className="font-bold text-slate-950">{formatNumber(item.value)}</p>
+                  </div>
+                  <div className="mt-3 h-2 rounded-full bg-slate-100">
+                    <div
+                      className="h-2 rounded-full bg-teal-600"
+                      style={{
+                        width: `${Math.min(100, report.summary.totalProduction ? (item.value / report.summary.totalProduction) * 100 : 0)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-slate-500">No hay produccion en este rango.</p>
+            )}
           </div>
         </Card>
       </div>

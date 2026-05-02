@@ -12,6 +12,7 @@ type ReportData = {
   summary: {
     totalExpenses: number;
     totalIncome: number;
+    totalSales: number;
     totalProduction: number;
     profit: number;
     costPerUnit: number;
@@ -93,19 +94,38 @@ function buildTable(title: string, rows: Array<Array<string | number>>) {
 }
 
 export function ReportActions({ data }: { data: ReportData }) {
+  const pendingTotal = data.income.reduce((sum, item) => sum + (item.balanceDue || 0), 0);
+  const collectionRate = data.summary.totalSales > 0
+    ? (data.summary.totalIncome / data.summary.totalSales) * 100
+    : 0;
+
   function exportExcel() {
     const sections = [
       buildTable("Resumen", [
-      ["Desde", "Hasta", "Total Gastos", "Total Ingresos", "Utilidad", "Total Produccion", "Costo por Unidad"],
-      [
-        data.from,
-        data.to,
-        data.summary.totalExpenses,
-        data.summary.totalIncome,
-        data.summary.profit,
-        data.summary.totalProduction,
-        data.summary.costPerUnit,
-      ],
+        [
+          "Desde",
+          "Hasta",
+          "Ventas Facturadas",
+          "Cobrado",
+          "Pendiente",
+          "Gastos",
+          "Utilidad Caja",
+          "Produccion",
+          "Costo por Unidad",
+          "% Cobranza",
+        ],
+        [
+          data.from,
+          data.to,
+          data.summary.totalSales,
+          data.summary.totalIncome,
+          pendingTotal,
+          data.summary.totalExpenses,
+          data.summary.profit,
+          data.summary.totalProduction,
+          data.summary.costPerUnit,
+          `${formatNumber(collectionRate)}%`,
+        ],
       ]),
 
       buildTable("Gastos", [
@@ -192,7 +212,7 @@ export function ReportActions({ data }: { data: ReportData }) {
   function exportPdf() {
     const pdf = new jsPDF();
     pdf.setFontSize(18);
-    pdf.text("Reporte de Fabrica", 14, 18);
+    pdf.text("Estado de la Planta", 14, 18);
     pdf.setFontSize(11);
     pdf.text(`Rango: ${data.from} a ${data.to}`, 14, 26);
 
@@ -200,11 +220,14 @@ export function ReportActions({ data }: { data: ReportData }) {
       startY: 34,
       head: [["Metrica", "Valor"]],
       body: [
-        ["Total Gastos", formatCurrency(data.summary.totalExpenses)],
-        ["Total Ingresos", formatCurrency(data.summary.totalIncome)],
-        ["Utilidad", formatCurrency(data.summary.profit)],
-        ["Total Produccion", formatNumber(data.summary.totalProduction)],
+        ["Ventas Facturadas", formatCurrency(data.summary.totalSales)],
+        ["Cobrado", formatCurrency(data.summary.totalIncome)],
+        ["Pendiente", formatCurrency(pendingTotal)],
+        ["Gastos", formatCurrency(data.summary.totalExpenses)],
+        ["Utilidad Caja", formatCurrency(data.summary.profit)],
+        ["Produccion", formatNumber(data.summary.totalProduction)],
         ["Costo por Unidad", formatCurrency(data.summary.costPerUnit)],
+        ["Cobranza", `${formatNumber(collectionRate)}%`],
       ],
     });
 
