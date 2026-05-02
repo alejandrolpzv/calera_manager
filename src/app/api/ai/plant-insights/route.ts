@@ -9,6 +9,15 @@ import { getReportData } from "@/server/services/factory";
 const requestSchema = z.object({
   from: z.string().min(8),
   to: z.string().min(8),
+  filters: z
+    .object({
+      expenseCategory: z.string().optional(),
+      productId: z.string().optional(),
+      paymentStatus: z.string().optional(),
+      q: z.string().optional(),
+    })
+    .optional()
+    .default({}),
 });
 
 const plantInsightsSchema = z.object({
@@ -198,7 +207,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Rango de fechas invalido." }, { status: 400 });
     }
 
-    const report = await getReportData(parsed.data.from, parsed.data.to);
+    const report = await getReportData(parsed.data.from, parsed.data.to, parsed.data.filters);
     const totalSales = report.summary.totalSales;
     const totalCollected = report.summary.totalIncome;
     const pendingTotal = report.income.reduce((sum, item) => sum + (item.balanceDue || 0), 0);

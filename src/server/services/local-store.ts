@@ -833,20 +833,77 @@ export async function getLocalDashboardData() {
   };
 }
 
-export async function getLocalReportData(from: string, to: string) {
+type LocalReportFilters = {
+  expenseCategory?: string;
+  productId?: string;
+  paymentStatus?: string;
+  q?: string;
+};
+
+export async function getLocalReportData(from: string, to: string, filters: LocalReportFilters = {}) {
   const store = await readStore();
   const fromDate = startOfDay(new Date(from));
   const toDate = endOfDay(new Date(to));
   const userMap = new Map(store.users.map((user) => [user.id, user]));
   const productMap = new Map(store.products.map((product) => [product.id, product]));
+  const query = filters.q?.trim().toLowerCase() || "";
+  const expenses = store.expenses
+    .filter((item) => inRange(item.date, fromDate, toDate))
+    .filter((item) => !filters.expenseCategory || item.category === filters.expenseCategory)
+    .filter((item) =>
+      query
+        ? [
+            item.description,
+            expenseCategoryLabels[item.category],
+            ...item.payrollLines.map((line) => line.employeeName),
+          ].some((value) => value?.toLowerCase().includes(query))
+        : true,
+    )
+    .sort((a, b) => +new Date(b.date) - +new Date(a.date));
+  const income = store.incomes
+    .filter((item) => inRange(item.date, fromDate, toDate))
+    .filter((item) => !filters.paymentStatus || item.paymentStatus === filters.paymentStatus)
+    .filter((item) => !filters.productId || item.lines.some((line) => line.productId === filters.productId))
+    .filter((item) =>
+      query
+        ? [
+            item.clientName,
+            item.referenceCode,
+            item.invoiceNumber,
+            ...item.lines.map((line) => productMap.get(line.productId)?.name || ""),
+          ].some((value) => value?.toLowerCase().includes(query))
+        : true,
+    )
+    .sort((a, b) => +new Date(b.date) - +new Date(a.date));
+  const production = store.productions
+    .filter((item) => inRange(item.date, fromDate, toDate))
+    .filter((item) => !filters.productId || item.productId === filters.productId)
+    .filter((item) =>
+      query
+        ? [item.notes, productMap.get(item.productId)?.name || ""].some((value) =>
+            value?.toLowerCase().includes(query),
+          )
+        : true,
+    )
+    .sort((a, b) => +new Date(b.date) - +new Date(a.date));
+  const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
+  const totalSales = income.reduce((sum, item) => sum + item.total, 0);
+  const totalIncome = income.reduce((sum, item) => sum + (item.amountPaid || 0), 0);
+  const totalProduction = production.reduce((sum, item) => sum + item.quantity, 0);
 
   return {
     from,
     to,
-    summary: summarize(store, fromDate, toDate),
-    expenses: store.expenses
-      .filter((item) => inRange(item.date, fromDate, toDate))
-      .sort((a, b) => +new Date(b.date) - +new Date(a.date))
+    filters,
+    summary: {
+      totalExpenses,
+      totalIncome,
+      totalSales,
+      totalProduction,
+      profit: totalIncome - totalExpenses,
+      costPerUnit: totalProduction > 0 ? totalExpenses / totalProduction : 0,
+    },
+    expenses: expenses
       .map((item) => ({
         id: item.id,
         date: new Date(item.date),
@@ -856,9 +913,7 @@ export async function getLocalReportData(from: string, to: string) {
         createdBy: userMap.get(item.createdById)?.name || "Desconocido",
         payrollLines: item.payrollLines || [],
       })),
-    income: store.incomes
-      .filter((item) => inRange(item.date, fromDate, toDate))
-      .sort((a, b) => +new Date(b.date) - +new Date(a.date))
+    income: income
       .map((item) => ({
         id: item.id,
         date: new Date(item.date),
@@ -883,9 +938,7 @@ export async function getLocalReportData(from: string, to: string) {
         })),
         createdBy: userMap.get(item.createdById)?.name || "Desconocido",
       })),
-    production: store.productions
-      .filter((item) => inRange(item.date, fromDate, toDate))
-      .sort((a, b) => +new Date(b.date) - +new Date(a.date))
+    production: production
       .map((item) => ({
         id: item.id,
         date: new Date(item.date),

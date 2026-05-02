@@ -16,7 +16,22 @@ type PlantInsights = {
   recommendedActions: string[];
 };
 
-export function AiPlantInsights({ from, to }: { from: string; to: string }) {
+type ReportFilters = {
+  expenseCategory?: string;
+  productId?: string;
+  paymentStatus?: string;
+  q?: string;
+};
+
+export function AiPlantInsights({
+  from,
+  to,
+  filters,
+}: {
+  from: string;
+  to: string;
+  filters?: ReportFilters;
+}) {
   const [insights, setInsights] = useState<PlantInsights | null>(null);
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -29,7 +44,7 @@ export function AiPlantInsights({ from, to }: { from: string; to: string }) {
         const response = await fetch("/api/ai/plant-insights", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ from, to }),
+          body: JSON.stringify({ from, to, filters }),
         });
         const data = await response.json();
 

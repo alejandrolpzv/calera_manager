@@ -4,8 +4,9 @@ import { AiPlantInsights } from "@/components/reports/ai-plant-insights";
 import { PageHeader } from "@/components/page-header";
 import { ReportActions } from "@/components/reports/report-actions";
 import { requireAdmin } from "@/lib/auth";
+import { expenseCategoryOptions } from "@/lib/constants";
 import { formatCurrency, formatNumber } from "@/lib/utils";
-import { getDefaultReportRange, getReportData } from "@/server/services/factory";
+import { getDefaultReportRange, getProducts, getReportData } from "@/server/services/factory";
 
 type ReportData = Awaited<ReturnType<typeof getReportData>>;
 type PayrollLine = {
@@ -53,6 +54,11 @@ export default async function ReportsPage({
   const from = typeof params.from === "string" ? params.from : defaults.from;
   const to = typeof params.to === "string" ? params.to : defaults.to;
   const preset = typeof params.preset === "string" ? params.preset : "";
+  const expenseCategory = typeof params.expenseCategory === "string" ? params.expenseCategory : "";
+  const productId = typeof params.productId === "string" ? params.productId : "";
+  const paymentStatus = typeof params.paymentStatus === "string" ? params.paymentStatus : "";
+  const q = typeof params.q === "string" ? params.q : "";
+  const filters = { expenseCategory, productId, paymentStatus, q };
   const presetCopy =
     preset === "week-to-date"
       ? {
@@ -74,7 +80,11 @@ export default async function ReportsPage({
             description:
               "Filtra por rango de fechas, revisa el rendimiento financiero y productivo, y exporta reportes limpios en PDF o Excel.",
           };
-  const report = await getReportData(from, to);
+  const [report, products] = await Promise.all([
+    getReportData(from, to, filters),
+    getProducts(),
+  ]);
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
   const payrollSummary = Object.values(
     report.expenses.reduce<Record<string, { employeeName: string; amount: number; workDays: number }>>(
       (acc, expense) => {
@@ -144,7 +154,8 @@ export default async function ReportsPage({
             </p>
           </div>
         ) : null}
-        <form className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto] xl:items-end">
+          {preset ? <input type="hidden" name="preset" value={preset} /> : null}
           <div>
             <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="from">
               Desde
@@ -169,10 +180,87 @@ export default async function ReportsPage({
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3"
             />
           </div>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="expenseCategory">
+              Tipo de gasto
+            </label>
+            <select
+              id="expenseCategory"
+              name="expenseCategory"
+              defaultValue={expenseCategory}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3"
+            >
+              <option value="">Todos</option>
+              {expenseCategoryOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="productId">
+              Producto
+            </label>
+            <select
+              id="productId"
+              name="productId"
+              defaultValue={productId}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3"
+            >
+              <option value="">Todos</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="paymentStatus">
+              Estado de cobro
+            </label>
+            <select
+              id="paymentStatus"
+              name="paymentStatus"
+              defaultValue={paymentStatus}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3"
+            >
+              <option value="">Todos</option>
+              <option value="PAID">Pagado</option>
+              <option value="PARTIAL">Parcial</option>
+              <option value="PENDING">Pendiente</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="q">
+              Buscar
+            </label>
+            <input
+              id="q"
+              name="q"
+              placeholder="Cliente, factura, nota..."
+              defaultValue={q}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3"
+            />
+          </div>
           <Button type="submit" className="md:h-[50px]">
-            Aplicar rango
+            Aplicar filtros
           </Button>
         </form>
+        {activeFilterCount ? (
+          <div className="mt-4 flex flex-col gap-3 rounded-3xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-slate-700">
+              {activeFilterCount} filtro{activeFilterCount === 1 ? "" : "s"} activo{activeFilterCount === 1 ? "" : "s"}. Los totales se recalculan con lo visible.
+            </p>
+            <a
+              href={`/reports?from=${from}&to=${to}${preset ? `&preset=${preset}` : ""}`}
+              className="text-sm font-bold text-teal-700"
+            >
+              Limpiar filtros
+            </a>
+          </div>
+        ) : null}
       </Card>
 
       <Card className="overflow-hidden p-4 sm:p-5">
@@ -243,7 +331,7 @@ export default async function ReportsPage({
         </div>
       </Card>
 
-      <AiPlantInsights from={from} to={to} />
+      <AiPlantInsights from={from} to={to} filters={filters} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Card className="p-5">

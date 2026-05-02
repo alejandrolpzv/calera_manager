@@ -23,6 +23,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Rango de fechas invalido." }, { status: 400 });
   }
 
-  const data = await getReportData(parsed.data.from, parsed.data.to);
+  const data = await getReportData(parsed.data.from, parsed.data.to, {
+    expenseCategory: searchParams.get("expenseCategory") || "",
+    productId: searchParams.get("productId") || "",
+    paymentStatus: searchParams.get("paymentStatus") || "",
+    q: searchParams.get("q") || "",
+  });
   return NextResponse.json(data);
 }
