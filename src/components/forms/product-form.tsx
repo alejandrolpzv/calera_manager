@@ -2,7 +2,7 @@
 
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { startTransition, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -54,7 +54,7 @@ export function ProductForm({ products }: { products: Product[] }) {
     }
 
     setSuccess("Producto eliminado.");
-    router.refresh();
+    startTransition(() => router.refresh());
   }
 
   return (
@@ -95,9 +95,9 @@ export function ProductForm({ products }: { products: Product[] }) {
           if (typeof window !== "undefined" && result.productId) {
             window.sessionStorage.setItem("newIncomeProductId", String(result.productId));
           }
-          router.refresh();
           savingRef.current = false;
           setLoading(false);
+          startTransition(() => router.refresh());
         }}
       >
         <div>

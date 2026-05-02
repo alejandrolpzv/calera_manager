@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { startTransition, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -82,12 +82,15 @@ export function ProductionForm({
           }
 
           setSuccess(isEditing ? "Produccion actualizada." : "Produccion guardada.");
+          setLoading(false);
+          savingRef.current = false;
+
           if (isEditing) {
             router.replace("/production");
+          } else {
+            router.push(`/production?saved=${Date.now()}`);
           }
-          router.refresh();
-          savingRef.current = false;
-          setLoading(false);
+          startTransition(() => router.refresh());
         }}
       >
         <div>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { startTransition, useRef, useState } from "react";
 
 type RecordRowActionsProps = {
   editId: string;
@@ -22,6 +22,7 @@ export function RecordRowActions({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const [deleted, setDeleted] = useState(false);
   const deletingRef = useRef(false);
 
   const params = new URLSearchParams(searchParams.toString());
@@ -59,6 +60,7 @@ export function RecordRowActions({
       return;
     }
 
+    setDeleted(true);
     const nextParams = new URLSearchParams(searchParams.toString());
     if (nextParams.get("edit") === editId) {
       nextParams.delete("edit");
@@ -67,7 +69,11 @@ export function RecordRowActions({
     router.replace(
       nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname,
     );
-    router.refresh();
+    startTransition(() => router.refresh());
+  }
+
+  if (deleted) {
+    return <p className="mt-3 text-sm font-semibold text-teal-700">Registro eliminado.</p>;
   }
 
   return (

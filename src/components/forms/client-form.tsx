@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { startTransition, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -74,12 +74,15 @@ export function ClientForm({
           }
 
           setSuccess(isEditing ? "Cliente actualizado." : "Cliente guardado.");
+          setLoading(false);
+          savingRef.current = false;
+
           if (isEditing) {
             router.replace("/clients");
+          } else {
+            router.push(`/clients?saved=${Date.now()}`);
           }
-          router.refresh();
-          savingRef.current = false;
-          setLoading(false);
+          startTransition(() => router.refresh());
         }}
       >
         <div>

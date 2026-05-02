@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { PaymentStatus } from "@prisma/client";
 
@@ -201,14 +201,16 @@ export function IncomeForm({
           }
 
           setSuccess(isEditing ? "Venta actualizada." : "Venta guardada.");
+          setLoading(false);
+          savingRef.current = false;
+
           if (isEditing) {
-            router.refresh();
             router.replace(`/income?updated=${Date.now()}`);
+            startTransition(() => router.refresh());
             return;
           }
-          router.refresh();
-          savingRef.current = false;
-          setLoading(false);
+          router.push(`/income?saved=${Date.now()}`);
+          startTransition(() => router.refresh());
         }}
       >
         <div>

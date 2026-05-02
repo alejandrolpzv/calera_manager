@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -269,12 +269,15 @@ export function ExpenseForm({
           }
 
           setSuccess(isEditing ? "Gasto actualizado." : "Gasto guardado.");
+          setLoading(false);
+          savingRef.current = false;
+
           if (isEditing) {
             router.replace("/expenses");
+          } else {
+            router.push(`/expenses?saved=${Date.now()}`);
           }
-          router.refresh();
-          savingRef.current = false;
-          setLoading(false);
+          startTransition(() => router.refresh());
         }}
       >
         <div>

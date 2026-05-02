@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { startTransition, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
@@ -25,6 +25,7 @@ export function PaymentActions({
   const [paymentNotes, setPaymentNotes] = useState("");
   const [loading, setLoading] = useState<"partial" | "paid" | null>(null);
   const [error, setError] = useState("");
+  const [settled, setSettled] = useState(false);
   const savingRef = useRef(false);
 
   async function updatePayment(markPaid: boolean) {
@@ -57,7 +58,16 @@ export function PaymentActions({
       return;
     }
 
-    router.refresh();
+    setSettled(true);
+    startTransition(() => router.refresh());
+  }
+
+  if (settled) {
+    return (
+      <div className="mt-4 rounded-2xl border border-teal-100 bg-teal-50 p-4 text-sm font-semibold text-teal-800">
+        Pago actualizado. La lista se esta refrescando...
+      </div>
+    );
   }
 
   return (
