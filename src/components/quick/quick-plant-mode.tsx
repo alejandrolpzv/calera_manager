@@ -1,7 +1,7 @@
 "use client";
 
 import { ExpenseCategory, PaymentStatus } from "@prisma/client";
-import { CircleDollarSign, Factory, Loader2, ReceiptText } from "lucide-react";
+import { CheckCircle2, CircleDollarSign, Factory, Loader2, ReceiptText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { startTransition, useMemo, useRef, useState } from "react";
 
@@ -24,6 +24,13 @@ type Client = {
 };
 
 type QuickType = "production" | "expense" | "income";
+type SavedRecord = {
+  type: QuickType;
+  label: string;
+  detail: string;
+  amount?: string;
+  savedAt: string;
+};
 
 export function QuickPlantMode({
   products,
@@ -43,6 +50,8 @@ export function QuickPlantMode({
   const [saleQuantity, setSaleQuantity] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [salePaidNow, setSalePaidNow] = useState(true);
+  const [formVersion, setFormVersion] = useState(0);
+  const [lastSaved, setLastSaved] = useState<SavedRecord | null>(null);
   const saleTotal = useMemo(
     () => (Number(saleQuantity) || 0) * (Number(salePrice) || 0),
     [salePrice, saleQuantity],
@@ -58,8 +67,33 @@ export function QuickPlantMode({
     setMessage("");
     setError("");
 
+    const currentType = active;
     const endpoint =
       active === "production" ? "/api/production" : active === "expense" ? "/api/expenses" : "/api/income";
+    const product = products.find((item) => item.id === String(formData.get("productId")));
+    const savedPreview: SavedRecord =
+      active === "production"
+        ? {
+            type: "production",
+            label: "Produccion guardada",
+            detail: `${formData.get("quantity") || 0} ${product?.unitType || "unidades"} | ${product?.name || "Producto"}`,
+            savedAt: new Date().toLocaleTimeString("es-HN", { hour: "2-digit", minute: "2-digit" }),
+          }
+        : active === "expense"
+          ? {
+              type: "expense",
+              label: "Gasto guardado",
+              detail: String(formData.get("description") || "Gasto rapido de planta"),
+              amount: formatCurrency(Number(formData.get("amount") || 0)),
+              savedAt: new Date().toLocaleTimeString("es-HN", { hour: "2-digit", minute: "2-digit" }),
+            }
+          : {
+              type: "income",
+              label: salePaidNow ? "Venta cobrada" : "Venta pendiente",
+              detail: `${formData.get("clientName") || "Cliente"} | ${product?.name || "Producto"}`,
+              amount: formatCurrency(saleTotal),
+              savedAt: new Date().toLocaleTimeString("es-HN", { hour: "2-digit", minute: "2-digit" }),
+            };
     const body =
       active === "production"
         ? {
@@ -110,7 +144,15 @@ export function QuickPlantMode({
             ? "Gasto guardado."
             : "Venta guardada e inventario descontado.",
       );
-      startTransition(() => router.refresh());
+      setLastSaved(savedPreview);
+      setFormVersion((version) => version + 1);
+      setSaleQuantity("");
+      setSalePrice("");
+      setSalePaidNow(true);
+      startTransition(() => {
+        router.refresh();
+      });
+      setActive(currentType);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "No se pudo guardar.");
     } finally {
@@ -165,7 +207,7 @@ export function QuickPlantMode({
         </div>
 
         <form
-          key={active}
+          key={`${active}-${formVersion}`}
           className="mt-5 space-y-4"
           action={submitQuickRecord}
         >
@@ -205,7 +247,34 @@ export function QuickPlantMode({
           </Button>
         </form>
       </Card>
+
+      {lastSaved ? <LastSavedCard record={lastSaved} /> : null}
     </div>
+  );
+}
+
+function LastSavedCard({ record }: { record: SavedRecord }) {
+  const tone =
+    record.type === "production"
+      ? "bg-teal-50 text-teal-900"
+      : record.type === "expense"
+        ? "bg-amber-50 text-amber-900"
+        : "bg-slate-950 text-white";
+
+  return (
+    <Card className={`p-4 xl:col-start-2 ${tone}`}>
+      <div className="flex items-start gap-3">
+        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+        <div className="min-w-0">
+          <p className="font-extrabold">{record.label}</p>
+          <p className="mt-1 text-sm opacity-80">{record.detail}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-bold">
+            {record.amount ? <span>{record.amount}</span> : null}
+            <span>{record.savedAt}</span>
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
 
