@@ -1,13 +1,15 @@
+import { format, startOfMonth, startOfWeek } from "date-fns";
+import { AlertTriangle, ArrowRight, Banknote, Factory, Gauge, PackageCheck } from "lucide-react";
+import Link from "next/link";
+
 import { getDashboardData, getInventorySnapshot, getRecentActivity } from "@/server/services/factory";
 import { requireAdmin } from "@/lib/auth";
-import { format, startOfMonth, startOfWeek } from "date-fns";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { DashboardCharts } from "@/components/dashboard/dashboard-charts";
 import { ActivityCard } from "@/components/activity-card";
 import { InventoryTable } from "@/components/inventory-table";
 import { Card } from "@/components/ui/card";
-import Link from "next/link";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +24,18 @@ export default async function DashboardPage() {
   const dashboard = await getDashboardData();
   const activity = await getRecentActivity();
   const inventory = await getInventorySnapshot();
+  const plantScore =
+    dashboard.operational.pendingReceivablesTotal > 0 || dashboard.operational.lowStock.length > 0
+      ? "Atencion"
+      : dashboard.monthly.profit >= 0
+        ? "Estable"
+        : "Critico";
+  const scoreTone =
+    plantScore === "Estable"
+      ? "bg-teal-400 text-slate-950"
+      : plantScore === "Atencion"
+        ? "bg-amber-300 text-slate-950"
+        : "bg-red-500 text-white";
 
   return (
     <>
@@ -31,48 +45,97 @@ export default async function DashboardPage() {
         description="Monitorea el rendimiento financiero semanal y mensual, la produccion y el inventario desde un solo centro de control optimizado para movil."
       />
 
-      <Card className="min-w-0 overflow-hidden p-4 sm:p-5">
-        <div className="grid gap-5 xl:grid-cols-[1fr_auto] xl:items-center">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.24em] text-teal-700">
-              Reportes rapidos
-            </p>
-            <h2 className="mt-2 text-2xl font-extrabold text-slate-950">
-              Estado actual de la planta
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Abre un resumen listo para revisar y exportar, con gastos, ventas,
-              cobros, produccion, planilla y saldos pendientes.
-            </p>
+      <section className="plant-hero overflow-hidden rounded-[30px] p-4 text-white sm:p-6">
+        <div className="grid gap-5 xl:grid-cols-[1fr_420px] xl:items-stretch">
+          <div className="flex min-w-0 flex-col justify-between gap-6">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.18em] ${scoreTone}`}>
+                  {plantScore}
+                </span>
+                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/80">
+                  {todayParam}
+                </span>
+              </div>
+              <h2 className="mt-4 max-w-2xl text-3xl font-black tracking-tight sm:text-4xl">
+                Estado actual de la planta
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70">
+                Lectura ejecutiva de caja, produccion, cobros e inventario para decidir rapido desde el telefono.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <PlantPulse
+                icon={Banknote}
+                label="Caja mensual"
+                value={formatCurrency(dashboard.monthly.profit)}
+                tone={dashboard.monthly.profit >= 0 ? "good" : "bad"}
+              />
+              <PlantPulse
+                icon={Factory}
+                label="Produccion"
+                value={formatNumber(dashboard.monthly.totalProduction)}
+                tone={dashboard.monthly.totalProduction > 0 ? "good" : "warn"}
+              />
+              <PlantPulse
+                icon={Gauge}
+                label="Costo/unidad"
+                value={formatCurrency(dashboard.monthly.costPerUnit)}
+                tone="neutral"
+              />
+              <PlantPulse
+                icon={AlertTriangle}
+                label="Pendiente"
+                value={formatCurrency(dashboard.operational.pendingReceivablesTotal)}
+                tone={dashboard.operational.pendingReceivablesTotal > 0 ? "warn" : "good"}
+              />
+            </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[460px]">
+
+          <div className="grid gap-3 rounded-[26px] bg-white/10 p-3 backdrop-blur sm:grid-cols-2 xl:grid-cols-1">
+            <Link
+              href="/quick"
+              className="group rounded-[24px] bg-white px-4 py-4 text-slate-950 shadow-lg shadow-black/10 transition active:scale-[0.99]"
+            >
+              <span className="flex items-center justify-between gap-3">
+                <span>
+                  <span className="block text-xs font-black uppercase tracking-[0.18em] text-teal-700">
+                    Planta
+                  </span>
+                  <span className="mt-1 block text-lg font-black">Registro rapido</span>
+                  <span className="mt-1 block text-sm text-slate-500">Produccion, gasto o venta</span>
+                </span>
+                <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" />
+              </span>
+            </Link>
             <Link
               href={`/reports?from=${weekStartParam}&to=${todayParam}&preset=week-to-date`}
-              className="rounded-3xl bg-teal-700 px-5 py-4 text-white shadow-lg shadow-teal-900/15 transition hover:bg-teal-800"
+              className="rounded-[24px] bg-teal-500 px-4 py-4 text-slate-950 shadow-lg shadow-black/10 transition active:scale-[0.99]"
             >
-              <span className="block text-xs font-bold uppercase tracking-[0.18em] text-teal-100">
+              <span className="block text-xs font-black uppercase tracking-[0.18em] text-teal-950/70">
                 Semana
               </span>
-              <span className="mt-1 block text-lg font-extrabold">Hasta hoy</span>
-              <span className="mt-1 block text-xs text-teal-100">
+              <span className="mt-1 block text-lg font-black">Estado hasta hoy</span>
+              <span className="mt-1 block text-xs font-semibold text-teal-950/70">
                 {weekStartParam} a {todayParam}
               </span>
             </Link>
             <Link
               href={`/reports?from=${monthStartParam}&to=${todayParam}&preset=month-to-date`}
-              className="rounded-3xl bg-slate-950 px-5 py-4 text-white shadow-lg shadow-slate-900/15 transition hover:bg-slate-900"
+              className="rounded-[24px] bg-white/10 px-4 py-4 text-white ring-1 ring-white/15 transition active:scale-[0.99]"
             >
-              <span className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-300">
+              <span className="block text-xs font-black uppercase tracking-[0.18em] text-white/50">
                 Mes
               </span>
-              <span className="mt-1 block text-lg font-extrabold">Hasta hoy</span>
-              <span className="mt-1 block text-xs text-slate-300">
+              <span className="mt-1 block text-lg font-black">Resumen mensual</span>
+              <span className="mt-1 block text-xs font-semibold text-white/50">
                 {monthStartParam} a {todayParam}
               </span>
             </Link>
           </div>
         </div>
-      </Card>
+      </section>
 
       <section className="grid min-w-0 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <StatCard
@@ -227,5 +290,32 @@ export default async function DashboardPage() {
 
       <InventoryTable inventory={inventory} />
     </>
+  );
+}
+
+function PlantPulse({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: typeof PackageCheck;
+  label: string;
+  value: string;
+  tone: "good" | "warn" | "bad" | "neutral";
+}) {
+  const toneClass = {
+    good: "bg-teal-400/15 text-teal-100 ring-teal-300/20",
+    warn: "bg-amber-300/15 text-amber-100 ring-amber-300/20",
+    bad: "bg-red-400/15 text-red-100 ring-red-300/20",
+    neutral: "bg-white/10 text-white ring-white/15",
+  }[tone];
+
+  return (
+    <div className={`rounded-[22px] p-3 ring-1 ${toneClass}`}>
+      <Icon className="h-5 w-5" />
+      <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] opacity-70">{label}</p>
+      <p className="mt-1 break-words text-lg font-black">{value}</p>
+    </div>
   );
 }

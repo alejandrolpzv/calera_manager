@@ -79,6 +79,20 @@ table {
     linear-gradient(135deg, rgba(15, 118, 110, 0.12), transparent 55%);
 }
 
+.plant-hero {
+  background:
+    radial-gradient(circle at 12% 12%, rgba(255, 255, 255, 0.22), transparent 24%),
+    radial-gradient(circle at 86% 8%, rgba(245, 158, 11, 0.18), transparent 22%),
+    linear-gradient(135deg, #07111f 0%, #0f2f2d 54%, #17212b 100%);
+  box-shadow: 0 24px 70px rgba(7, 17, 31, 0.2);
+}
+
+.touch-tile {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 14px 38px rgba(59, 53, 41, 0.08);
+}
+
 .industrial-grid {
   background-image:
     linear-gradient(rgba(23, 33, 43, 0.03) 1px, transparent 1px),

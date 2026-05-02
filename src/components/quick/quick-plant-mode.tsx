@@ -187,65 +187,75 @@ export function QuickPlantMode({
         />
       </div>
 
-      <Card className="p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-teal-700">
-              Captura express
-            </p>
-            <h3 className="mt-2 text-2xl font-extrabold text-slate-950">
-              {active === "production"
-                ? "Produccion rapida"
-                : active === "expense"
-                  ? "Gasto rapido"
-                  : "Venta rapida"}
-            </h3>
+      <Card className="overflow-hidden p-0">
+        <div className="bg-slate-950 p-4 text-white sm:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-teal-300">
+                Captura express
+              </p>
+              <h3 className="mt-2 text-2xl font-black tracking-tight">
+                {active === "production"
+                  ? "Produccion rapida"
+                  : active === "expense"
+                    ? "Gasto rapido"
+                    : "Venta rapida"}
+              </h3>
+            </div>
+            <span className="rounded-full bg-teal-300 px-3 py-1 text-xs font-black text-slate-950">
+              2 taps
+            </span>
           </div>
-          <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800">
-            2 taps
-          </span>
         </div>
 
-        <form
-          key={`${active}-${formVersion}`}
-          className="mt-5 space-y-4"
-          action={submitQuickRecord}
-        >
+        <div className="p-4 sm:p-5">
           <div>
-            <Label htmlFor="quick-date">Fecha</Label>
-            <Input id="quick-date" name="date" type="date" defaultValue={defaultDate} required />
+            <p className="text-sm font-semibold text-slate-500">
+              Campos minimos para operar rapido desde el telefono.
+            </p>
           </div>
 
-          {active === "production" ? (
-            <ProductionQuickFields products={products} />
-          ) : active === "expense" ? (
-            <ExpenseQuickFields />
-          ) : (
-            <IncomeQuickFields
-              products={products}
-              clients={clients}
-              saleTotal={saleTotal}
-              saleQuantity={saleQuantity}
-              salePrice={salePrice}
-              salePaidNow={salePaidNow}
-              setSaleQuantity={setSaleQuantity}
-              setSalePrice={setSalePrice}
-              setSalePaidNow={setSalePaidNow}
-            />
-          )}
-
-          {error ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p> : null}
-          {message ? <p className="rounded-2xl bg-teal-50 p-3 text-sm font-semibold text-teal-800">{message}</p> : null}
-
-          <Button
-            type="submit"
-            className="min-h-14 w-full text-base"
-            disabled={loading || (active !== "expense" && products.length === 0)}
+          <form
+            key={`${active}-${formVersion}`}
+            className="mt-5 space-y-4"
+            action={submitQuickRecord}
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {loading ? "Guardando..." : "Guardar rapido"}
-          </Button>
-        </form>
+            <div>
+              <Label htmlFor="quick-date">Fecha</Label>
+              <Input id="quick-date" name="date" type="date" defaultValue={defaultDate} required />
+            </div>
+
+            {active === "production" ? (
+              <ProductionQuickFields products={products} />
+            ) : active === "expense" ? (
+              <ExpenseQuickFields />
+            ) : (
+              <IncomeQuickFields
+                products={products}
+                clients={clients}
+                saleTotal={saleTotal}
+                saleQuantity={saleQuantity}
+                salePrice={salePrice}
+                salePaidNow={salePaidNow}
+                setSaleQuantity={setSaleQuantity}
+                setSalePrice={setSalePrice}
+                setSalePaidNow={setSalePaidNow}
+              />
+            )}
+
+            {error ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p> : null}
+            {message ? <p className="rounded-2xl bg-teal-50 p-3 text-sm font-semibold text-teal-800">{message}</p> : null}
+
+            <Button
+              type="submit"
+              className="min-h-14 w-full text-base"
+              disabled={loading || (active !== "expense" && products.length === 0)}
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {loading ? "Guardando..." : "Guardar rapido"}
+            </Button>
+          </form>
+        </div>
       </Card>
 
       {lastSaved ? <LastSavedCard record={lastSaved} /> : null}
@@ -295,10 +305,10 @@ function QuickSelector({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-[28px] p-4 text-left transition ${
+      className={`touch-tile rounded-[28px] p-4 text-left transition active:scale-[0.99] ${
         active
           ? "bg-slate-950 text-white shadow-xl shadow-slate-900/15"
-          : "bg-white/80 text-slate-800 shadow-sm hover:bg-white"
+          : "bg-white/85 text-slate-800 hover:bg-white"
       }`}
     >
       <span className={`grid h-11 w-11 place-items-center rounded-2xl ${active ? "bg-white/15" : "bg-teal-50 text-teal-800"}`}>
