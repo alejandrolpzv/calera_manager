@@ -1,7 +1,7 @@
 "use client";
 
 import { UserRole } from "@prisma/client";
-import { BarChart3, Boxes, CircleDollarSign, CircleHelp, Factory, FileSpreadsheet, History, Menu, ReceiptText, ScanSearch, Users } from "lucide-react";
+import { BarChart3, Boxes, CircleDollarSign, CircleHelp, Factory, FileSpreadsheet, History, Menu, PlusCircle, ReceiptText, ScanSearch, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -10,6 +10,7 @@ import { navigationItems } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const icons = {
+  "/quick": PlusCircle,
   "/dashboard": BarChart3,
   "/history": History,
   "/clients": Users,
@@ -30,8 +31,8 @@ export function AppNavigation({ role }: { role: UserRole }) {
   const mobilePrimaryItems = useMemo(() => {
     const primaryHrefs =
       role === UserRole.ADMIN
-        ? ["/dashboard", "/income", "/expenses", "/production"]
-        : ["/expenses", "/income", "/production", "/inventory"];
+        ? ["/dashboard", "/quick", "/income", "/expenses"]
+        : ["/quick", "/income", "/expenses", "/production"];
 
     return primaryHrefs
       .map((href) => items.find((item) => item.href === href))

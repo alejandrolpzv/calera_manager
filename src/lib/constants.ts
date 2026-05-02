@@ -22,6 +22,7 @@ export const roleLabels = {
 } as const;
 
 export const navigationItems = [
+  { href: "/quick", label: "Rapido", roles: [UserRole.ADMIN, UserRole.OPERATOR] },
   { href: "/dashboard", label: "Panel", roles: [UserRole.ADMIN] },
   { href: "/history", label: "Historial", roles: [UserRole.ADMIN] },
   { href: "/clients", label: "Clientes", roles: [UserRole.ADMIN] },

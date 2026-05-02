@@ -16,9 +16,9 @@ export function MobileQuickActions({ role }: { role: UserRole }) {
   const [open, setOpen] = useState(false);
   const actions: QuickAction[] = [
     {
-      href: "/expenses",
-      label: "Nuevo gasto",
-      description: "Diesel, planilla, repuestos",
+      href: "/quick",
+      label: "Modo rapido",
+      description: "Produccion, gasto o venta",
       icon: ReceiptText,
     },
     {
