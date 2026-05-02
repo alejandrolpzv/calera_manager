@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { AiPlantInsights } from "@/components/reports/ai-plant-insights";
 import { PageHeader } from "@/components/page-header";
 import { ReportActions } from "@/components/reports/report-actions";
 import { requireAdmin } from "@/lib/auth";
@@ -241,6 +242,8 @@ export default async function ReportsPage({
           </div>
         </div>
       </Card>
+
+      <AiPlantInsights from={from} to={to} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Card className="p-5">
