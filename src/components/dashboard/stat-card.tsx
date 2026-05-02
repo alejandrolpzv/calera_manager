@@ -30,12 +30,12 @@ export function StatCard({
 
   const content = (
     <Card
-      className={`metric-gradient overflow-hidden p-5 transition ${href ? "hover:-translate-y-0.5 hover:ring-2 hover:ring-teal-200" : ""}`}
+      className={`metric-gradient min-w-0 overflow-hidden p-4 transition sm:p-5 ${href ? "hover:-translate-y-0.5 hover:ring-2 hover:ring-teal-200" : ""}`}
     >
-      <div className={`mb-6 h-20 rounded-3xl bg-gradient-to-br ${accentStyles[accent]}`} />
+      <div className={`mb-4 h-14 rounded-3xl bg-gradient-to-br sm:mb-6 sm:h-20 ${accentStyles[accent]}`} />
       <p className="text-sm font-semibold text-slate-500">{label}</p>
-      <div className="mt-2 flex items-center gap-3">
-        <p className="text-3xl font-extrabold text-slate-950">
+      <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+        <p className="min-w-0 break-words text-2xl font-extrabold text-slate-950 sm:text-3xl">
           {tone === "currency" ? formatCurrency(value) : formatNumber(value)}
         </p>
         {trend ? (

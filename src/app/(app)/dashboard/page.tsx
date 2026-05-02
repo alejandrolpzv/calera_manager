@@ -31,7 +31,7 @@ export default async function DashboardPage() {
         description="Monitorea el rendimiento financiero semanal y mensual, la produccion y el inventario desde un solo centro de control optimizado para movil."
       />
 
-      <Card className="overflow-hidden p-5">
+      <Card className="min-w-0 overflow-hidden p-4 sm:p-5">
         <div className="grid gap-5 xl:grid-cols-[1fr_auto] xl:items-center">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.24em] text-teal-700">
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
         </div>
       </Card>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid min-w-0 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <StatCard
           label="Cobrado semanal"
           value={dashboard.weekly.totalIncome}
@@ -102,7 +102,7 @@ export default async function DashboardPage() {
         />
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid min-w-0 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <StatCard
           label="Cobrado mensual"
           value={dashboard.monthly.totalIncome}
@@ -135,8 +135,8 @@ export default async function DashboardPage() {
         productionOverTime={dashboard.productionOverTime}
       />
 
-      <section className="grid gap-6 xl:grid-cols-3">
-        <Card className="p-5">
+      <section className="grid min-w-0 gap-4 xl:grid-cols-3 xl:gap-6">
+        <Card className="min-w-0 p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-bold text-slate-950">Top clientes</h3>
@@ -156,7 +156,7 @@ export default async function DashboardPage() {
           </div>
         </Card>
 
-        <Card className="p-5">
+        <Card className="min-w-0 p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-bold text-slate-950">Top productos</h3>
@@ -176,7 +176,7 @@ export default async function DashboardPage() {
           </div>
         </Card>
 
-        <Card className="p-5">
+        <Card className="min-w-0 p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-bold text-slate-950">Alertas operativas</h3>
@@ -219,7 +219,7 @@ export default async function DashboardPage() {
         </Card>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-3">
+      <section className="grid min-w-0 gap-4 xl:grid-cols-3 xl:gap-6">
         <ActivityCard title="Gastos recientes" rows={activity.expenses} type="expense" />
         <ActivityCard title="Ventas recientes" rows={activity.incomes} type="income" />
         <ActivityCard title="Produccion reciente" rows={activity.productions} type="production" />
