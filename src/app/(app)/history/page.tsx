@@ -18,6 +18,16 @@ type PayrollLine = {
   notes?: string | null;
 };
 
+type RawMaterialLine = {
+  id: string;
+  materialName: string;
+  trips: number;
+  poundsPerTrip: number;
+  totalPounds: number;
+  expectedProductionUnits: number;
+  notes?: string | null;
+};
+
 type ExpenseRow = {
   id: string;
   date: Date;
@@ -26,6 +36,7 @@ type ExpenseRow = {
   amount: number;
   createdBy: string;
   payrollLines: PayrollLine[];
+  rawMaterialLines?: RawMaterialLine[];
 };
 
 type IncomeRow = {
@@ -97,6 +108,25 @@ function ExpenseSection({ rows }: { rows: ExpenseRow[] }) {
                         <span className="text-slate-700">{line.employeeName}</span>
                         <span className="font-semibold text-slate-900">
                           {formatCurrency(line.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {item.rawMaterialLines?.length ? (
+                <div className="mt-3 rounded-2xl bg-amber-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+                    Desglose de materia prima
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    {item.rawMaterialLines.map((line) => (
+                      <div key={line.id} className="grid gap-1 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
+                        <span className="text-slate-700">
+                          {line.materialName} | {formatNumber(line.trips)} viajes x {formatNumber(line.poundsPerTrip)} lb
+                        </span>
+                        <span className="font-semibold text-amber-900">
+                          {formatNumber(line.expectedProductionUnits)} sacos esperados
                         </span>
                       </div>
                     ))}

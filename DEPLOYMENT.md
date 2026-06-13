@@ -26,7 +26,33 @@ DEFAULT_OPERATOR_EMAIL="operator@factory.local"
 DEFAULT_OPERATOR_PASSWORD="cambia-esto-en-produccion"
 OPENAI_API_KEY=""
 OPENAI_PAYROLL_MODEL="gpt-4.1-mini"
+AI_PROVIDER="openai"
+GEMINI_API_KEY=""
+GEMINI_ANALYST_MODEL="gemini-2.5-flash"
+RESEND_API_KEY=""
+REPORT_FROM_EMAIL="Sistema de Fabrica <onboarding@resend.dev>"
+WEEKLY_REPORT_EMAIL="alejandrolpzv@gmail.com"
+WEEKLY_REPORT_SITE_URL="https://tu-sitio.netlify.app"
+CRON_SECRET="usa-un-secreto-largo-y-unico-para-el-cron"
 ```
+
+## Reporte semanal automatico por correo
+
+La app incluye una funcion programada de Netlify en `netlify/functions/weekly-report.mjs`.
+
+- Se ejecuta los domingos a las 6:00 PM hora Honduras.
+- Netlify cron usa UTC, por eso el schedule interno es `0 0 * * 1`.
+- La funcion llama `/api/reports/weekly-email` usando `CRON_SECRET`.
+- El correo sale por Resend usando `RESEND_API_KEY`.
+
+Para activar el envio:
+
+1. Crea una API key en Resend.
+2. Agrega `RESEND_API_KEY` en Netlify.
+3. Agrega `WEEKLY_REPORT_EMAIL="alejandrolpzv@gmail.com"`.
+4. Agrega `WEEKLY_REPORT_SITE_URL` con el URL final de Netlify.
+5. Agrega `CRON_SECRET` con un texto largo y dificil de adivinar.
+6. Si tienes dominio propio verificado en Resend, cambia `REPORT_FROM_EMAIL`.
 
 ## Webapp en celular
 

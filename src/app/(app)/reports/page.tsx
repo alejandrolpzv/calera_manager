@@ -23,6 +23,16 @@ type ReportExpense = ReportData["expenses"][number];
 type ReportIncome = ReportData["income"][number];
 type ReportProduction = ReportData["production"][number];
 
+const reportTypeOptions = [
+  { value: "all", label: "Global" },
+  { value: "expenses", label: "Solo gastos" },
+  { value: "income", label: "Solo ventas" },
+  { value: "production", label: "Solo produccion" },
+  { value: "receivables", label: "Solo cobros pendientes" },
+  { value: "payroll", label: "Solo planilla" },
+  { value: "raw-material", label: "Solo materia prima / piedra" },
+] as const;
+
 function groupTotals<T>(
   records: T[],
   getKey: (record: T) => string,
@@ -54,11 +64,12 @@ export default async function ReportsPage({
   const from = typeof params.from === "string" ? params.from : defaults.from;
   const to = typeof params.to === "string" ? params.to : defaults.to;
   const preset = typeof params.preset === "string" ? params.preset : "";
+  const reportType = typeof params.reportType === "string" ? params.reportType : "all";
   const expenseCategory = typeof params.expenseCategory === "string" ? params.expenseCategory : "";
   const productId = typeof params.productId === "string" ? params.productId : "";
   const paymentStatus = typeof params.paymentStatus === "string" ? params.paymentStatus : "";
   const q = typeof params.q === "string" ? params.q : "";
-  const filters = { expenseCategory, productId, paymentStatus, q };
+  const filters = { reportType, expenseCategory, productId, paymentStatus, q };
   const presetCopy =
     preset === "week-to-date"
       ? {
@@ -84,7 +95,19 @@ export default async function ReportsPage({
     getReportData(from, to, filters),
     getProducts(),
   ]);
-  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+  const activeFilterCount = Object.entries(filters).filter(([key, value]) => {
+    if (key === "reportType") {
+      return value && value !== "all";
+    }
+
+    return Boolean(value);
+  }).length;
+  const currentReportType = reportTypeOptions.find((option) => option.value === reportType) || reportTypeOptions[0];
+  const showExpenses = ["all", "expenses", "payroll", "raw-material"].includes(reportType);
+  const showIncome = ["all", "income", "receivables"].includes(reportType);
+  const showProduction = ["all", "production", "raw-material"].includes(reportType);
+  const showRawMaterial = ["all", "raw-material"].includes(reportType);
+  const showPayroll = ["all", "expenses", "payroll"].includes(reportType);
   const payrollSummary = Object.values(
     report.expenses.reduce<Record<string, { employeeName: string; amount: number; workDays: number }>>(
       (acc, expense) => {
@@ -104,6 +127,11 @@ export default async function ReportsPage({
   const receivables = report.income.filter((item) => (item.balanceDue || 0) > 0);
   const totalSales = report.summary.totalSales;
   const totalCollected = report.summary.totalIncome;
+  const totalEstimatedProductionCost = report.summary.totalEstimatedProductionCost || 0;
+  const estimatedGrossMargin =
+    report.summary.estimatedGrossMargin ?? totalSales - totalEstimatedProductionCost;
+  const expectedProductionFromStone = report.summary.expectedProductionFromStone || 0;
+  const productionVarianceFromStone = report.summary.productionVarianceFromStone || 0;
   const pendingTotal = report.income.reduce((sum, item) => sum + (item.balanceDue || 0), 0);
   const collectionRate = totalSales > 0 ? (totalCollected / totalSales) * 100 : 0;
   const expensesByCategory = groupTotals(
@@ -126,6 +154,9 @@ export default async function ReportsPage({
       : "",
     report.summary.totalProduction <= 0
       ? "No hay produccion registrada en este rango."
+      : "",
+    expectedProductionFromStone > 0 && productionVarianceFromStone < 0
+      ? `La produccion registrada esta ${formatNumber(Math.abs(productionVarianceFromStone))} sacos debajo de lo esperado por piedra.`
       : "",
     lowStockItems.length
       ? `${lowStockItems.length} producto${lowStockItems.length === 1 ? "" : "s"} con stock bajo.`
@@ -154,8 +185,25 @@ export default async function ReportsPage({
             </p>
           </div>
         ) : null}
-        <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto] xl:items-end">
+        <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto] xl:items-end">
           {preset ? <input type="hidden" name="preset" value={preset} /> : null}
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="reportType">
+              Tipo de reporte
+            </label>
+            <select
+              id="reportType"
+              name="reportType"
+              defaultValue={reportType}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3"
+            >
+              {reportTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="from">
               Desde
@@ -251,7 +299,8 @@ export default async function ReportsPage({
         {activeFilterCount ? (
           <div className="mt-4 flex flex-col gap-3 rounded-3xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-semibold text-slate-700">
-              {activeFilterCount} filtro{activeFilterCount === 1 ? "" : "s"} activo{activeFilterCount === 1 ? "" : "s"}. Los totales se recalculan con lo visible.
+              {activeFilterCount} filtro{activeFilterCount === 1 ? "" : "s"} activo{activeFilterCount === 1 ? "" : "s"}.
+              Reporte actual: {currentReportType.label}. Los totales se recalculan con lo visible.
             </p>
             <a
               href={`/reports?from=${from}&to=${to}${preset ? `&preset=${preset}` : ""}`}
@@ -334,27 +383,106 @@ export default async function ReportsPage({
       <AiPlantInsights from={from} to={to} filters={filters} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Card className="p-5">
-          <p className="text-sm font-semibold text-slate-500">Gastos</p>
-          <p className="mt-2 text-2xl font-extrabold">{formatCurrency(report.summary.totalExpenses)}</p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-sm font-semibold text-slate-500">Cobrado</p>
-          <p className="mt-2 text-2xl font-extrabold">{formatCurrency(totalCollected)}</p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-sm font-semibold text-slate-500">Utilidad</p>
-          <p className="mt-2 text-2xl font-extrabold">{formatCurrency(report.summary.profit)}</p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-sm font-semibold text-slate-500">Produccion</p>
-          <p className="mt-2 text-2xl font-extrabold">{formatNumber(report.summary.totalProduction)}</p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-sm font-semibold text-slate-500">Costo / unidad</p>
-          <p className="mt-2 text-2xl font-extrabold">{formatCurrency(report.summary.costPerUnit)}</p>
-        </Card>
+        {showExpenses ? (
+          <Card className="p-5">
+            <p className="text-sm font-semibold text-slate-500">Gastos</p>
+            <p className="mt-2 text-2xl font-extrabold">{formatCurrency(report.summary.totalExpenses)}</p>
+          </Card>
+        ) : null}
+        {showIncome ? (
+          <Card className="p-5">
+            <p className="text-sm font-semibold text-slate-500">Cobrado</p>
+            <p className="mt-2 text-2xl font-extrabold">{formatCurrency(totalCollected)}</p>
+          </Card>
+        ) : null}
+        {showExpenses || showIncome ? (
+          <Card className="p-5">
+            <p className="text-sm font-semibold text-slate-500">Utilidad</p>
+            <p className="mt-2 text-2xl font-extrabold">{formatCurrency(report.summary.profit)}</p>
+          </Card>
+        ) : null}
+        {showProduction ? (
+          <Card className="p-5">
+            <p className="text-sm font-semibold text-slate-500">Produccion</p>
+            <p className="mt-2 text-2xl font-extrabold">{formatNumber(report.summary.totalProduction)}</p>
+          </Card>
+        ) : null}
+        {showProduction || showExpenses ? (
+          <Card className="p-5">
+            <p className="text-sm font-semibold text-slate-500">Costo / unidad</p>
+            <p className="mt-2 text-2xl font-extrabold">{formatCurrency(report.summary.costPerUnit)}</p>
+          </Card>
+        ) : null}
       </div>
+
+      {showIncome ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card className="p-5">
+            <p className="text-sm font-semibold text-slate-500">Costo de produccion vendido</p>
+            <p className="mt-2 text-2xl font-extrabold text-amber-700">
+              {formatCurrency(totalEstimatedProductionCost)}
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              Calculado desde el costo guardado en cada linea de venta.
+            </p>
+          </Card>
+          <Card className="p-5">
+            <p className="text-sm font-semibold text-slate-500">Margen bruto estimado</p>
+            <p className="mt-2 text-2xl font-extrabold text-teal-700">
+              {formatCurrency(estimatedGrossMargin)}
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              Ventas facturadas menos costo estimado de producto vendido.
+            </p>
+          </Card>
+        </div>
+      ) : null}
+
+      {showRawMaterial ? (
+        <Card className="overflow-hidden p-5">
+        <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr] xl:items-center">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-700">
+              Materia prima
+            </p>
+            <h3 className="mt-2 text-xl font-extrabold text-slate-950">
+              Piedra vs produccion esperada
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Calculado con viajes de piedra registrados en gastos de materia prima. Asume sacos de 100 lb y sirve como pauta operativa, no como auditoria exacta.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-3xl bg-amber-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-700">Viajes</p>
+              <p className="mt-2 text-2xl font-black text-amber-950">
+                {formatNumber(report.summary.rawMaterialTrips || 0)}
+              </p>
+            </div>
+            <div className="rounded-3xl bg-white/80 p-4">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Libras</p>
+              <p className="mt-2 text-2xl font-black text-slate-950">
+                {formatNumber(report.summary.rawMaterialPounds || 0)}
+              </p>
+            </div>
+            <div className="rounded-3xl bg-white/80 p-4">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Esperado</p>
+              <p className="mt-2 text-2xl font-black text-slate-950">
+                {formatNumber(expectedProductionFromStone)}
+              </p>
+            </div>
+            <div className={`rounded-3xl p-4 ${productionVarianceFromStone >= 0 ? "bg-teal-50" : "bg-rose-50"}`}>
+              <p className={`text-xs font-bold uppercase tracking-[0.16em] ${productionVarianceFromStone >= 0 ? "text-teal-700" : "text-rose-700"}`}>
+                Diferencia
+              </p>
+              <p className={`mt-2 text-2xl font-black ${productionVarianceFromStone >= 0 ? "text-teal-900" : "text-rose-700"}`}>
+                {formatNumber(productionVarianceFromStone)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </Card>
+      ) : null}
 
       <Card className="p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -367,14 +495,31 @@ export default async function ReportsPage({
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-3">
-        <Card className="p-5">
-          <h3 className="text-lg font-bold">Gastos</h3>
+        {showExpenses ? (
+          <Card className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-bold">Gastos</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Desglose completo: {report.expenses.length} registro{report.expenses.length === 1 ? "" : "s"}.
+              </p>
+            </div>
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+              Todos
+            </span>
+          </div>
           <div className="mt-4 space-y-3">
-            {report.expenses.slice(0, 10).map((item: ReportExpense) => (
+            {report.expenses.length ? report.expenses.map((item: ReportExpense) => (
               <div key={item.id} className="rounded-2xl bg-white/80 p-4">
-                <p className="font-semibold">{item.description}</p>
-                <p className="mt-1 text-sm text-slate-600">{item.category}</p>
-                <p className="mt-2 text-sm font-semibold">{formatCurrency(item.amount)}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{item.description}</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {item.category} | {item.createdBy}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm font-bold text-slate-950">{formatCurrency(item.amount)}</p>
+                </div>
                 {item.payrollLines?.length ? (
                   <div className="mt-3 space-y-2 rounded-2xl bg-slate-50 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -390,22 +535,60 @@ export default async function ReportsPage({
                     ))}
                   </div>
                 ) : null}
+                {item.rawMaterialLines?.length ? (
+                  <div className="mt-3 space-y-2 rounded-2xl bg-amber-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+                      Desglose de materia prima
+                    </p>
+                    {item.rawMaterialLines.map((line) => (
+                      <div key={line.id} className="grid gap-1 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
+                        <span className="text-slate-700">
+                          {line.materialName} | {formatNumber(line.trips)} viajes x {formatNumber(line.poundsPerTrip)} lb
+                        </span>
+                        <span className="font-semibold text-amber-900">
+                          {formatNumber(line.expectedProductionUnits)} sacos esperados
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-            ))}
+            )) : (
+              <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                No hay gastos en este rango.
+              </p>
+            )}
           </div>
-        </Card>
+          </Card>
+        ) : null}
 
-        <Card className="p-5">
-          <h3 className="text-lg font-bold">Ingresos</h3>
+        {showIncome ? (
+          <Card className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-bold">Ingresos</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Desglose completo: {report.income.length} venta{report.income.length === 1 ? "" : "s"}.
+              </p>
+            </div>
+            <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">
+              Todos
+            </span>
+          </div>
           <div className="mt-4 space-y-3">
-            {report.income.slice(0, 10).map((item: ReportIncome) => (
+            {report.income.length ? report.income.map((item: ReportIncome) => (
               <div key={item.id} className="rounded-2xl bg-white/80 p-4">
                 <p className="font-semibold">{item.clientName}</p>
                 <p className="mt-1 text-sm text-slate-600">
                   {item.productName}
                   {item.referenceCode ? ` | Ref: ${item.referenceCode}` : ""}
                 </p>
-                <p className="mt-2 text-sm font-semibold">{formatCurrency(item.total)}</p>
+                <div className="mt-2 flex flex-wrap gap-2 text-sm font-semibold">
+                  <span>{formatCurrency(item.total)}</span>
+                  <span className="text-teal-700">
+                    Margen: {formatCurrency(item.grossMargin || 0)}
+                  </span>
+                </div>
                 {Array.isArray(item.lines) && item.lines.length > 0 ? (
                   <div className="mt-3 space-y-2 rounded-2xl bg-slate-50 p-3">
                     {item.lines.map((line) => (
@@ -421,26 +604,49 @@ export default async function ReportsPage({
                   </div>
                 ) : null}
               </div>
-            ))}
+            )) : (
+              <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                No hay ingresos en este rango.
+              </p>
+            )}
           </div>
-        </Card>
+          </Card>
+        ) : null}
 
-        <Card className="p-5">
-          <h3 className="text-lg font-bold">Produccion</h3>
+        {showProduction ? (
+          <Card className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-bold">Produccion</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Desglose completo: {report.production.length} registro{report.production.length === 1 ? "" : "s"}.
+              </p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+              Todos
+            </span>
+          </div>
           <div className="mt-4 space-y-3">
-            {report.production.slice(0, 10).map((item: ReportProduction) => (
+            {report.production.length ? report.production.map((item: ReportProduction) => (
               <div key={item.id} className="rounded-2xl bg-white/80 p-4">
                 <p className="font-semibold">{item.productName}</p>
                 <p className="mt-1 text-sm text-slate-600">{item.notes || "Sin notas"}</p>
                 <p className="mt-2 text-sm font-semibold">{formatNumber(item.quantity)}</p>
               </div>
-            ))}
+            )) : (
+              <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                No hay produccion en este rango.
+              </p>
+            )}
           </div>
-        </Card>
+          </Card>
+        ) : null}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="p-5">
+      {(showExpenses || showProduction) ? (
+        <div className="grid gap-6 xl:grid-cols-2">
+        {showExpenses ? (
+          <Card className="p-5">
           <h3 className="text-lg font-bold">Gastos por categoria</h3>
           <div className="mt-4 space-y-3">
             {expensesByCategory.length ? (
@@ -464,9 +670,11 @@ export default async function ReportsPage({
               <p className="text-sm text-slate-500">No hay gastos en este rango.</p>
             )}
           </div>
-        </Card>
+          </Card>
+        ) : null}
 
-        <Card className="p-5">
+        {showProduction ? (
+          <Card className="p-5">
           <h3 className="text-lg font-bold">Produccion por producto</h3>
           <div className="mt-4 space-y-3">
             {productionByProduct.length ? (
@@ -490,11 +698,15 @@ export default async function ReportsPage({
               <p className="text-sm text-slate-500">No hay produccion en este rango.</p>
             )}
           </div>
-        </Card>
+          </Card>
+        ) : null}
       </div>
+      ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="p-5">
+      {(showPayroll || showIncome) ? (
+        <div className="grid gap-6 xl:grid-cols-2">
+        {showPayroll ? (
+          <Card className="p-5">
           <h3 className="text-lg font-bold">Resumen de planilla</h3>
           <div className="mt-4 space-y-3">
             {payrollSummary.length ? (
@@ -511,9 +723,11 @@ export default async function ReportsPage({
               <p className="text-sm text-slate-500">No hubo planilla en este rango.</p>
             )}
           </div>
-        </Card>
+          </Card>
+        ) : null}
 
-        <Card className="p-5">
+        {showIncome ? (
+          <Card className="p-5">
           <h3 className="text-lg font-bold">Cuentas por cobrar del rango</h3>
           <div className="mt-4 space-y-3">
             {receivables.length ? (
@@ -534,8 +748,10 @@ export default async function ReportsPage({
               <p className="text-sm text-slate-500">No hay saldos pendientes en este rango.</p>
             )}
           </div>
-        </Card>
+          </Card>
+        ) : null}
       </div>
+      ) : null}
     </>
   );
 }

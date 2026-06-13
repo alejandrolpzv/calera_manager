@@ -50,7 +50,7 @@ export function MobileQuickActions({ role }: { role: UserRole }) {
       {open ? (
         <div className="fixed inset-0 z-50 bg-slate-950/20 backdrop-blur-[2px] md:hidden" onClick={() => setOpen(false)}>
           <div
-            className="glass-panel absolute inset-x-3 bottom-24 rounded-[28px] p-3"
+            className="glass-panel absolute inset-x-3 bottom-24 rounded-[30px] p-3"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-2 flex items-center justify-between px-1">
@@ -73,9 +73,9 @@ export function MobileQuickActions({ role }: { role: UserRole }) {
                     key={action.href}
                     href={action.href}
                     onClick={() => setOpen(false)}
-                    className="flex items-center gap-3 rounded-2xl bg-white/80 p-3 shadow-sm"
+                    className="tap-target flex items-center gap-3 rounded-[22px] bg-white/85 p-3 shadow-sm ring-1 ring-slate-900/5 active:scale-[0.99]"
                   >
-                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-teal-700 text-white">
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[18px] bg-slate-950 text-white">
                       <Icon className="h-5 w-5" />
                     </span>
                     <span className="min-w-0">
@@ -92,7 +92,7 @@ export function MobileQuickActions({ role }: { role: UserRole }) {
 
       <button
         type="button"
-        className="fixed bottom-[6.25rem] right-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-teal-700 text-white shadow-2xl shadow-teal-900/30 md:hidden"
+        className="fixed bottom-[6.25rem] right-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-[var(--accent)] text-white shadow-2xl shadow-teal-950/30 ring-4 ring-white/60 md:hidden"
         onClick={() => setOpen(true)}
         aria-label="Abrir acciones rapidas"
       >

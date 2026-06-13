@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Users } from "lucide-react";
+import { Mountain, Plus, Trash2, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,6 +21,13 @@ type PayrollLine = {
   notes: string;
 };
 
+type RawMaterialLine = {
+  materialName: string;
+  trips: string;
+  poundsPerTrip: string;
+  notes: string;
+};
+
 type InitialPayrollLine = {
   employeeId?: string;
   employeeName: string;
@@ -29,6 +36,15 @@ type InitialPayrollLine = {
   bonuses?: number;
   deductions?: number;
   amount: number;
+  notes: string;
+};
+
+type InitialRawMaterialLine = {
+  materialName: string;
+  trips: number;
+  poundsPerTrip: number;
+  totalPounds: number;
+  expectedProductionUnits: number;
   notes: string;
 };
 
@@ -54,6 +70,7 @@ export function ExpenseForm({
     description: string;
     amount: number;
     payrollLines?: InitialPayrollLine[];
+    rawMaterialLines?: InitialRawMaterialLine[];
   } | null;
   employees: Array<{
     id: string;
@@ -86,8 +103,19 @@ export function ExpenseForm({
           }))
       : [{ employeeId: "", employeeName: "", workDays: "1", dailySalary: "", bonuses: "0", deductions: "0", amount: "", notes: "" }],
   );
+  const [rawMaterialLines, setRawMaterialLines] = useState<RawMaterialLine[]>(
+    initialValues?.rawMaterialLines?.length
+      ? initialValues.rawMaterialLines.map((line) => ({
+          materialName: line.materialName || "Piedra",
+          trips: String(line.trips || 0),
+          poundsPerTrip: String(line.poundsPerTrip || 11000),
+          notes: line.notes || "",
+        }))
+      : [{ materialName: "Piedra", trips: "1", poundsPerTrip: "11000", notes: "" }],
+  );
 
   const isPayroll = category === "PLANILLA";
+  const isRawMaterial = category === "MATERIA_PRIMA";
   const isEditing = Boolean(initialValues?.id);
   const payrollTotal = useMemo(
     () =>
@@ -96,6 +124,24 @@ export function ExpenseForm({
         return sum + (Number.isFinite(value) ? value : 0);
       }, 0),
     [payrollLines],
+  );
+  const rawMaterialSummary = useMemo(
+    () =>
+      rawMaterialLines.reduce(
+        (summary, line) => {
+          const trips = Number(line.trips) || 0;
+          const poundsPerTrip = Number(line.poundsPerTrip) || 0;
+          const totalPounds = trips * poundsPerTrip;
+
+          return {
+            trips: summary.trips + trips,
+            totalPounds: summary.totalPounds + totalPounds,
+            expectedProductionUnits: summary.expectedProductionUnits + totalPounds / 100,
+          };
+        },
+        { trips: 0, totalPounds: 0, expectedProductionUnits: 0 },
+      ),
+    [rawMaterialLines],
   );
 
   function updatePayrollLine(index: number, field: keyof PayrollLine, value: string) {
@@ -161,6 +207,27 @@ export function ExpenseForm({
 
   function removePayrollLine(index: number) {
     setPayrollLines((current) =>
+      current.length === 1 ? current : current.filter((_, currentIndex) => currentIndex !== index),
+    );
+  }
+
+  function updateRawMaterialLine(index: number, field: keyof RawMaterialLine, value: string) {
+    setRawMaterialLines((current) =>
+      current.map((line, currentIndex) =>
+        currentIndex === index ? { ...line, [field]: value } : line,
+      ),
+    );
+  }
+
+  function addRawMaterialLine() {
+    setRawMaterialLines((current) => [
+      ...current,
+      { materialName: "Piedra", trips: "1", poundsPerTrip: "11000", notes: "" },
+    ]);
+  }
+
+  function removeRawMaterialLine(index: number) {
+    setRawMaterialLines((current) =>
       current.length === 1 ? current : current.filter((_, currentIndex) => currentIndex !== index),
     );
   }
@@ -254,6 +321,16 @@ export function ExpenseForm({
                       bonuses: Number(line.bonuses),
                       deductions: Number(line.deductions),
                       amount: Number(line.amount),
+                      notes: line.notes.trim(),
+                    }))
+                : [],
+              rawMaterialLines: isRawMaterial
+                ? rawMaterialLines
+                    .filter((line) => line.materialName.trim() && Number(line.trips) > 0)
+                    .map((line) => ({
+                      materialName: line.materialName.trim(),
+                      trips: Number(line.trips),
+                      poundsPerTrip: Number(line.poundsPerTrip || 11000),
                       notes: line.notes.trim(),
                     }))
                 : [],
@@ -500,6 +577,121 @@ export function ExpenseForm({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        ) : null}
+
+        {isRawMaterial ? (
+          <div className="rounded-[24px] border border-amber-200 bg-amber-50/70 p-4">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Mountain className="h-4 w-4 text-amber-700" />
+                <div>
+                  <p className="font-semibold text-slate-900">Desglose de piedra</p>
+                  <p className="text-sm text-slate-600">
+                    Usa 10,000-12,000 lb por viaje. El default es 11,000 lb.
+                  </p>
+                </div>
+              </div>
+              <Button type="button" variant="secondary" className="px-3 py-2" onClick={addRawMaterialLine}>
+                <Plus className="mr-1 h-4 w-4" />
+                Linea
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {rawMaterialLines.map((line, index) => {
+                const trips = Number(line.trips) || 0;
+                const poundsPerTrip = Number(line.poundsPerTrip) || 0;
+                const totalPounds = trips * poundsPerTrip;
+                const expectedUnits = totalPounds / 100;
+
+                return (
+                  <div key={`raw-material-${index}`} className="rounded-2xl bg-white p-4 shadow-sm">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <Label htmlFor={`raw-material-name-${index}`}>Subgrupo</Label>
+                        <Input
+                          id={`raw-material-name-${index}`}
+                          value={line.materialName}
+                          onChange={(event) => updateRawMaterialLine(index, "materialName", event.target.value)}
+                          placeholder="Piedra"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`raw-material-trips-${index}`}>Viajes</Label>
+                        <Input
+                          id={`raw-material-trips-${index}`}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={line.trips}
+                          onChange={(event) => updateRawMaterialLine(index, "trips", event.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`raw-material-pounds-${index}`}>Libras por viaje</Label>
+                        <Input
+                          id={`raw-material-pounds-${index}`}
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={line.poundsPerTrip}
+                          onChange={(event) => updateRawMaterialLine(index, "poundsPerTrip", event.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <Label htmlFor={`raw-material-notes-${index}`}>Notas</Label>
+                      <Input
+                        id={`raw-material-notes-${index}`}
+                        value={line.notes}
+                        onChange={(event) => updateRawMaterialLine(index, "notes", event.target.value)}
+                        placeholder="Proveedor, camion, cantera, humedad, etc."
+                      />
+                    </div>
+
+                    <div className="mt-3 flex flex-col gap-2 rounded-2xl bg-amber-50 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-semibold text-amber-900">
+                        {totalPounds.toLocaleString("en-US")} lb estimadas
+                      </span>
+                      <span className="font-semibold text-amber-900">
+                        Produccion esperada: {expectedUnits.toLocaleString("en-US", { maximumFractionDigits: 2 })} sacos de 100 lb
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="px-2 py-2 text-red-700"
+                        onClick={() => removeRawMaterialLine(index)}
+                        disabled={rawMaterialLines.length === 1}
+                      >
+                        <Trash2 className="mr-1 h-4 w-4" />
+                        Quitar
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-white/80 p-3">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-700">Viajes</p>
+                <p className="mt-1 text-xl font-black text-amber-950">{rawMaterialSummary.trips.toFixed(2)}</p>
+              </div>
+              <div className="rounded-2xl bg-white/80 p-3">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-700">Libras</p>
+                <p className="mt-1 text-xl font-black text-amber-950">
+                  {rawMaterialSummary.totalPounds.toLocaleString("en-US")}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white/80 p-3">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-700">Produccion esperada</p>
+                <p className="mt-1 text-xl font-black text-amber-950">
+                  {rawMaterialSummary.expectedProductionUnits.toLocaleString("en-US", { maximumFractionDigits: 2 })} sacos
+                </p>
+              </div>
             </div>
           </div>
         ) : null}

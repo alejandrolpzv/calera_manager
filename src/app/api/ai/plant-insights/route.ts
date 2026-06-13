@@ -11,6 +11,7 @@ const requestSchema = z.object({
   to: z.string().min(8),
   filters: z
     .object({
+      reportType: z.string().optional(),
       expenseCategory: z.string().optional(),
       productId: z.string().optional(),
       paymentStatus: z.string().optional(),

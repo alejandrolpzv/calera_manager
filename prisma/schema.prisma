@@ -64,15 +64,16 @@ model Employee {
 }
 
 model Product {
-  id          String       @id @default(cuid())
-  name        String
-  unitType    String       @default("Sacks of 100 lbs")
-  incomes     Income[]
-  incomeLines IncomeLine[]
-  productions Production[]
-  inventory   Inventory?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id               String       @id @default(cuid())
+  name             String
+  unitType         String       @default("Sacks of 100 lbs")
+  standardUnitCost Decimal      @default(0) @db.Decimal(12, 2)
+  incomes          Income[]
+  incomeLines      IncomeLine[]
+  productions      Production[]
+  inventory        Inventory?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   @@index([name])
 }
@@ -102,11 +103,29 @@ model Expense {
   createdById String
   createdBy   User            @relation(fields: [createdById], references: [id])
   payrollLines ExpensePayrollLine[]
+  rawMaterialLines ExpenseRawMaterialLine[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
   @@index([date])
   @@index([category])
+}
+
+model ExpenseRawMaterialLine {
+  id                      String    @id @default(cuid())
+  expenseId               String
+  expense                 Expense   @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  materialName            String    @default("Piedra")
+  trips                   Decimal   @db.Decimal(8, 2)
+  poundsPerTrip           Decimal   @default(11000) @db.Decimal(12, 2)
+  totalPounds             Decimal   @db.Decimal(14, 2)
+  expectedProductionUnits Decimal   @db.Decimal(12, 2)
+  notes                   String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([expenseId])
+  @@index([materialName])
 }
 
 model ExpensePayrollLine {
@@ -160,16 +179,18 @@ model Income {
 }
 
 model IncomeLine {
-  id           String   @id @default(cuid())
-  incomeId     String
-  income       Income   @relation(fields: [incomeId], references: [id], onDelete: Cascade)
-  productId    String
-  product      Product  @relation(fields: [productId], references: [id])
-  quantity     Decimal  @db.Decimal(12, 2)
-  pricePerUnit Decimal  @db.Decimal(12, 2)
-  total        Decimal  @db.Decimal(12, 2)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String   @id @default(cuid())
+  incomeId          String
+  income            Income   @relation(fields: [incomeId], references: [id], onDelete: Cascade)
+  productId         String
+  product           Product  @relation(fields: [productId], references: [id])
+  quantity          Decimal  @db.Decimal(12, 2)
+  pricePerUnit      Decimal  @db.Decimal(12, 2)
+  estimatedUnitCost Decimal  @default(0) @db.Decimal(12, 2)
+  estimatedCost     Decimal  @default(0) @db.Decimal(12, 2)
+  total             Decimal  @db.Decimal(12, 2)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([incomeId])
   @@index([productId])

@@ -47,17 +47,17 @@ export function ActivityCard({
     type === "expense" ? "/api/expenses" : type === "income" ? "/api/income" : "/api/production";
 
   return (
-    <Card className="p-5">
-      <h3 className="text-lg font-bold text-slate-950">{title}</h3>
+    <Card className="control-ruler p-5 pt-6">
+      <h3 className="text-xl font-black tracking-[-0.035em] text-slate-950">{title}</h3>
       <div className="mt-4 space-y-3">
         {rows.length === 0 ? (
           <p className="text-sm text-slate-500">Aun no hay registros.</p>
         ) : (
           rows.map((row) => (
-            <div key={String(row.id)} className="rounded-2xl bg-white/80 p-4">
+            <div key={String(row.id)} className="rounded-[22px] bg-white/85 p-4 ring-1 ring-slate-900/5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="font-semibold text-slate-900">
+                  <p className="font-black text-slate-950">
                     {String(
                       type === "expense"
                         ? row.description
@@ -68,13 +68,13 @@ export function ActivityCard({
                   </p>
                   <p className="mt-1 text-sm text-slate-500">{formatDate(row.date as Date)}</p>
                 </div>
-                <p className="text-sm font-semibold text-slate-800">
+                <p className="shrink-0 text-sm font-black text-slate-800">
                   {type === "expense"
                     ? formatCurrency(Number(row.amount))
                     : formatNumber(Number(type === "income" ? row.total : row.quantity))}
                 </p>
               </div>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-2 text-sm font-medium text-slate-600">
                 {String(
                   type === "expense"
                     ? row.category
@@ -84,7 +84,7 @@ export function ActivityCard({
                 )}
               </p>
               {type === "income" && Array.isArray(row.lines) && row.lines.length > 0 ? (
-                <div className="mt-3 rounded-2xl bg-slate-50 p-3">
+                <div className="mt-3 rounded-[20px] bg-slate-50 p-3 ring-1 ring-slate-100">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Lineas de venta
                   </p>
@@ -105,7 +105,7 @@ export function ActivityCard({
               {type === "expense" &&
               Array.isArray(row.payrollLines) &&
               row.payrollLines.length > 0 ? (
-                <div className="mt-3 rounded-2xl bg-slate-50 p-3">
+                <div className="mt-3 rounded-[20px] bg-slate-50 p-3 ring-1 ring-slate-100">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Desglose de planilla
                   </p>

@@ -45,6 +45,7 @@ import {
   updateLocalClient,
   updateLocalIncome,
   updateLocalIncomePayment,
+  updateLocalProduct,
   updateLocalProduction,
 } from "@/server/services/local-store";
 
@@ -91,7 +92,7 @@ type InventoryWithProduct = Prisma.InventoryGetPayload<{
 }>;
 
 type ExpenseWithCreatedByAndPayroll = Prisma.ExpenseGetPayload<{
-  include: { createdBy: true; payrollLines: true };
+  include: { createdBy: true; payrollLines: true; rawMaterialLines: true };
 }>;
 
 type IncomeWithDetails = Prisma.IncomeGetPayload<{
@@ -118,11 +119,19 @@ type PayrollInputLine = {
   notes?: string;
 };
 
+type RawMaterialInputLine = {
+  materialName: string;
+  trips: number;
+  poundsPerTrip: number;
+  notes?: string;
+};
+
 type IncomeInputLine = {
   productId?: string;
   productName?: string;
   quantity: number;
   pricePerUnit: number;
+  estimatedUnitCost?: number;
 };
 
 function normalizePayment(total: number, amountPaid = 0, requestedStatus?: PaymentStatus) {
@@ -164,6 +173,41 @@ function summarizeIncomeLines(
   return {
     productName: lines.map((line) => line.productName).join(", "),
     quantity: lines.reduce((sum, line) => sum + line.quantity, 0),
+  };
+}
+
+function mapRawMaterialLine(line: ExpenseWithCreatedByAndPayroll["rawMaterialLines"][number]) {
+  return {
+    id: line.id,
+    materialName: line.materialName,
+    trips: decimalToNumber(line.trips),
+    poundsPerTrip: decimalToNumber(line.poundsPerTrip),
+    totalPounds: decimalToNumber(line.totalPounds),
+    expectedProductionUnits: decimalToNumber(line.expectedProductionUnits),
+    notes: line.notes,
+  };
+}
+
+function rawMaterialCreateData(lines?: RawMaterialInputLine[]) {
+  if (!lines?.length) {
+    return undefined;
+  }
+
+  return {
+    create: lines.map((line) => {
+      const trips = new Prisma.Decimal(line.trips || 0);
+      const poundsPerTrip = new Prisma.Decimal(line.poundsPerTrip || 11000);
+      const totalPounds = trips.mul(poundsPerTrip);
+
+      return {
+        materialName: line.materialName?.trim() || "Piedra",
+        trips,
+        poundsPerTrip,
+        totalPounds,
+        expectedProductionUnits: totalPounds.div(100),
+        notes: line.notes || null,
+      };
+    }),
   };
 }
 
@@ -222,6 +266,10 @@ async function resolveIncomeLineForDb(
 
   const quantity = new Prisma.Decimal(line.quantity);
   const pricePerUnit = new Prisma.Decimal(line.pricePerUnit);
+  const estimatedUnitCost = new Prisma.Decimal(
+    line.estimatedUnitCost ?? decimalToNumber(product.standardUnitCost),
+  );
+  const estimatedCost = quantity.mul(estimatedUnitCost);
   const shortfall = quantity.sub(inventory.quantity);
 
   if (shortfall.greaterThan(0)) {
@@ -241,6 +289,8 @@ async function resolveIncomeLineForDb(
     productId: product.id,
     quantity,
     pricePerUnit,
+    estimatedUnitCost,
+    estimatedCost,
     total: quantity.mul(pricePerUnit),
   };
 }
@@ -352,6 +402,7 @@ export async function getProducts() {
     id: product.id,
     name: product.name,
     unitType: product.unitType,
+    standardUnitCost: decimalToNumber(product.standardUnitCost),
     inventoryQuantity: decimalToNumber(product.inventory?.quantity),
   }));
 }
@@ -535,22 +586,33 @@ export async function getReceivables() {
         { paymentStatus: "PARTIAL" },
       ],
     },
+    include: { lines: true },
     orderBy: [{ dueDate: "asc" }, { date: "asc" }],
   });
 
   return incomes
-    .map((income) => ({
-      id: income.id,
-      date: income.date,
-      dueDate: income.dueDate,
-      clientName: income.clientName,
-      invoiceNumber: income.invoiceNumber || "",
-      total: decimalToNumber(income.total),
-      amountPaid: decimalToNumber(income.amountPaid),
-      balanceDue: Math.max(0, decimalToNumber(income.total) - decimalToNumber(income.amountPaid)),
-      paymentStatus: income.paymentStatus,
-      referenceCode: income.referenceCode || "",
-    }))
+    .map((income) => {
+      const estimatedCost = income.lines.reduce(
+        (sum, line) => sum + decimalToNumber(line.estimatedCost),
+        0,
+      );
+      const total = decimalToNumber(income.total);
+
+      return {
+        id: income.id,
+        date: income.date,
+        dueDate: income.dueDate,
+        clientName: income.clientName,
+        invoiceNumber: income.invoiceNumber || "",
+        total,
+        amountPaid: decimalToNumber(income.amountPaid),
+        balanceDue: Math.max(0, total - decimalToNumber(income.amountPaid)),
+        paymentStatus: income.paymentStatus,
+        referenceCode: income.referenceCode || "",
+        estimatedCost,
+        grossMargin: total - estimatedCost,
+      };
+    })
     .filter((income) => income.balanceDue > 0);
 }
 
@@ -586,7 +648,7 @@ export async function getRecentActivity() {
   const expenses = await prisma.expense.findMany({
     take: 12,
     orderBy: { date: "desc" },
-    include: { createdBy: true, payrollLines: true },
+    include: { createdBy: true, payrollLines: true, rawMaterialLines: true },
   });
   const incomes = await prisma.income.findMany({
     take: 12,
@@ -617,6 +679,7 @@ export async function getRecentActivity() {
         amount: decimalToNumber(line.amount),
         notes: line.notes,
       })),
+      rawMaterialLines: expense.rawMaterialLines.map(mapRawMaterialLine),
     })),
     incomes: incomes.map((income: IncomeWithDetails) => {
       const lines = income.lines.length
@@ -834,12 +897,20 @@ export async function getHistoryData(filters: HistoryFilters) {
                       },
                     },
                   },
+                  {
+                    rawMaterialLines: {
+                      some: {
+                        materialName: { contains: q, mode: "insensitive" },
+                      },
+                    },
+                  },
                 ]
               : undefined,
           },
           include: {
             createdBy: true,
             payrollLines: true,
+            rawMaterialLines: true,
           },
           orderBy: { date: "desc" },
         });
@@ -919,6 +990,7 @@ export async function getHistoryData(filters: HistoryFilters) {
       amount: decimalToNumber(line.amount),
       notes: line.notes,
     })),
+    rawMaterialLines: item.rawMaterialLines.map(mapRawMaterialLine),
   }));
 
   const mappedIncome = income.map((item: IncomeWithDetails) => {
@@ -999,6 +1071,7 @@ export async function getHistoryData(filters: HistoryFilters) {
 }
 
 export type ReportFilters = {
+  reportType?: string;
   expenseCategory?: string;
   productId?: string;
   paymentStatus?: string;
@@ -1015,6 +1088,16 @@ export async function getReportData(from: string, to: string, filters: ReportFil
   const start = asDate(from);
   const end = asDate(to, true);
   const query = filters.q?.trim() || "";
+  const reportType = filters.reportType || "all";
+  const includeExpenses = ["all", "expenses", "payroll", "raw-material"].includes(reportType);
+  const includeIncome = ["all", "income", "receivables"].includes(reportType);
+  const includeProduction = ["all", "production", "raw-material"].includes(reportType);
+  const forcedExpenseCategory =
+    reportType === "payroll"
+      ? ExpenseCategory.PLANILLA
+      : reportType === "raw-material"
+        ? ExpenseCategory.MATERIA_PRIMA
+        : undefined;
   const incomeAnd: Prisma.IncomeWhereInput[] = [];
 
   if (filters.productId) {
@@ -1038,57 +1121,92 @@ export async function getReportData(from: string, to: string, filters: ReportFil
     });
   }
 
-  const expenses = await prisma.expense.findMany({
-    where: {
-      date: { gte: start, lte: end },
-      ...(filters.expenseCategory ? { category: filters.expenseCategory as ExpenseCategory } : {}),
-      ...(query
-        ? {
-            OR: [
-              { description: { contains: query, mode: "insensitive" } },
-              { payrollLines: { some: { employeeName: { contains: query, mode: "insensitive" } } } },
-            ],
-          }
-        : {}),
-    },
-    include: { createdBy: true, payrollLines: true },
-    orderBy: { date: "desc" },
-  });
-  const income = await prisma.income.findMany({
-    where: {
-      date: { gte: start, lte: end },
-      ...(filters.paymentStatus ? { paymentStatus: filters.paymentStatus as PaymentStatus } : {}),
-      ...(incomeAnd.length ? { AND: incomeAnd } : {}),
-    },
-    include: { createdBy: true, product: true, lines: { include: { product: true } } },
-    orderBy: { date: "desc" },
-  });
-  const production = await prisma.production.findMany({
-    where: {
-      date: { gte: start, lte: end },
-      ...(filters.productId ? { productId: filters.productId } : {}),
-      ...(query
-        ? {
-            OR: [
-              { notes: { contains: query, mode: "insensitive" } },
-              { product: { name: { contains: query, mode: "insensitive" } } },
-            ],
-          }
-        : {}),
-    },
-    include: { createdBy: true, product: true },
-    orderBy: { date: "desc" },
-  });
+  const expenses = includeExpenses
+    ? await prisma.expense.findMany({
+        where: {
+          date: { gte: start, lte: end },
+          category: forcedExpenseCategory || (filters.expenseCategory ? filters.expenseCategory as ExpenseCategory : undefined),
+          ...(reportType === "raw-material" ? { rawMaterialLines: { some: {} } } : {}),
+          ...(query
+            ? {
+                OR: [
+                  { description: { contains: query, mode: "insensitive" } },
+                  { payrollLines: { some: { employeeName: { contains: query, mode: "insensitive" } } } },
+                  { rawMaterialLines: { some: { materialName: { contains: query, mode: "insensitive" } } } },
+                ],
+              }
+            : {}),
+        },
+        include: { createdBy: true, payrollLines: true, rawMaterialLines: true },
+        orderBy: { date: "desc" },
+      })
+    : [];
+  const income = includeIncome
+    ? await prisma.income.findMany({
+        where: {
+          date: { gte: start, lte: end },
+          ...(reportType === "receivables"
+            ? { OR: [{ paymentStatus: PaymentStatus.PENDING }, { paymentStatus: PaymentStatus.PARTIAL }] }
+            : filters.paymentStatus
+              ? { paymentStatus: filters.paymentStatus as PaymentStatus }
+              : {}),
+          ...(incomeAnd.length ? { AND: incomeAnd } : {}),
+        },
+        include: { createdBy: true, product: true, lines: { include: { product: true } } },
+        orderBy: { date: "desc" },
+      })
+    : [];
+  const production = includeProduction
+    ? await prisma.production.findMany({
+        where: {
+          date: { gte: start, lte: end },
+          ...(filters.productId ? { productId: filters.productId } : {}),
+          ...(query
+            ? {
+                OR: [
+                  { notes: { contains: query, mode: "insensitive" } },
+                  { product: { name: { contains: query, mode: "insensitive" } } },
+                ],
+              }
+            : {}),
+        },
+        include: { createdBy: true, product: true },
+        orderBy: { date: "desc" },
+      })
+    : [];
   const inventory = await getInventorySnapshot();
   const totalExpenses = expenses.reduce((sum, item) => sum + decimalToNumber(item.amount), 0);
   const totalSales = income.reduce((sum, item) => sum + decimalToNumber(item.total), 0);
   const totalIncome = income.reduce((sum, item) => sum + decimalToNumber(item.amountPaid), 0);
+  const totalEstimatedProductionCost = income.reduce(
+    (sum, item) =>
+      sum + item.lines.reduce((lineSum, line) => lineSum + decimalToNumber(line.estimatedCost), 0),
+    0,
+  );
   const totalProduction = production.reduce((sum, item) => sum + decimalToNumber(item.quantity), 0);
+  const rawMaterialSummary = expenses.reduce(
+    (summary, expense) => {
+      for (const line of expense.rawMaterialLines) {
+        summary.trips += decimalToNumber(line.trips);
+        summary.totalPounds += decimalToNumber(line.totalPounds);
+        summary.expectedProductionUnits += decimalToNumber(line.expectedProductionUnits);
+      }
+
+      return summary;
+    },
+    { trips: 0, totalPounds: 0, expectedProductionUnits: 0 },
+  );
   const summary = {
     totalExpenses,
     totalIncome,
     totalSales,
+    totalEstimatedProductionCost,
+    estimatedGrossMargin: totalSales - totalEstimatedProductionCost,
     totalProduction,
+    rawMaterialTrips: rawMaterialSummary.trips,
+    rawMaterialPounds: rawMaterialSummary.totalPounds,
+    expectedProductionFromStone: rawMaterialSummary.expectedProductionUnits,
+    productionVarianceFromStone: totalProduction - rawMaterialSummary.expectedProductionUnits,
     profit: totalIncome - totalExpenses,
     costPerUnit: totalProduction > 0 ? totalExpenses / totalProduction : 0,
   };
@@ -1096,7 +1214,7 @@ export async function getReportData(from: string, to: string, filters: ReportFil
   return {
     from,
     to,
-    filters,
+    filters: { ...filters, reportType },
     summary,
     expenses: expenses.map((item: ExpenseWithCreatedByAndPayroll) => ({
       id: item.id,
@@ -1115,6 +1233,7 @@ export async function getReportData(from: string, to: string, filters: ReportFil
         amount: decimalToNumber(line.amount),
         notes: line.notes,
       })),
+      rawMaterialLines: item.rawMaterialLines.map(mapRawMaterialLine),
     })),
     income: income.map((item: IncomeWithDetails) => {
       const lines = item.lines.length
@@ -1124,6 +1243,8 @@ export async function getReportData(from: string, to: string, filters: ReportFil
             productName: line.product.name,
             quantity: decimalToNumber(line.quantity),
             pricePerUnit: decimalToNumber(line.pricePerUnit),
+            estimatedUnitCost: decimalToNumber(line.estimatedUnitCost),
+            estimatedCost: decimalToNumber(line.estimatedCost),
             total: decimalToNumber(line.total),
           }))
         : [
@@ -1133,10 +1254,14 @@ export async function getReportData(from: string, to: string, filters: ReportFil
               productName: item.product.name,
               quantity: decimalToNumber(item.quantity),
               pricePerUnit: decimalToNumber(item.pricePerUnit),
+              estimatedUnitCost: 0,
+              estimatedCost: 0,
               total: decimalToNumber(item.total),
             },
           ];
       const summary = summarizeIncomeLines(lines);
+      const estimatedCost = lines.reduce((sum, line) => sum + line.estimatedCost, 0);
+      const total = decimalToNumber(item.total);
 
       return {
         id: item.id,
@@ -1146,9 +1271,11 @@ export async function getReportData(from: string, to: string, filters: ReportFil
         productName: summary.productName,
         quantity: summary.quantity,
         pricePerUnit: lines[0]?.pricePerUnit || 0,
-        total: decimalToNumber(item.total),
+        total,
         amountPaid: decimalToNumber(item.amountPaid),
-        balanceDue: Math.max(0, decimalToNumber(item.total) - decimalToNumber(item.amountPaid)),
+        balanceDue: Math.max(0, total - decimalToNumber(item.amountPaid)),
+        estimatedCost,
+        grossMargin: total - estimatedCost,
         paymentStatus: item.paymentStatus,
         comprobanteUrl: item.comprobanteUrl,
         clientName: item.clientName,
@@ -1184,6 +1311,7 @@ export async function createExpense(data: {
     amount: number;
     notes?: string;
   }>;
+  rawMaterialLines?: RawMaterialInputLine[];
 }) {
   if (shouldUseLocalStore()) {
     return createLocalExpense(data);
@@ -1210,9 +1338,11 @@ export async function createExpense(data: {
             })),
           }
         : undefined,
+      rawMaterialLines: rawMaterialCreateData(data.rawMaterialLines),
     },
     include: {
       payrollLines: true,
+      rawMaterialLines: true,
     },
   });
 }
@@ -1224,7 +1354,7 @@ export async function getExpenseById(id: string) {
 
   const expense = await prisma.expense.findUnique({
     where: { id },
-    include: { payrollLines: true },
+    include: { payrollLines: true, rawMaterialLines: true },
   });
 
   if (!expense) {
@@ -1248,6 +1378,10 @@ export async function getExpenseById(id: string) {
       amount: decimalToNumber(line.amount),
       notes: line.notes || "",
     })),
+    rawMaterialLines: expense.rawMaterialLines.map((line) => ({
+      ...mapRawMaterialLine(line),
+      notes: line.notes || "",
+    })),
   };
 }
 
@@ -1268,6 +1402,7 @@ export async function updateExpense(
       amount: number;
       notes?: string;
     }>;
+    rawMaterialLines?: RawMaterialInputLine[];
   },
 ) {
   if (shouldUseLocalStore()) {
@@ -1276,6 +1411,9 @@ export async function updateExpense(
 
   return prisma.$transaction(async (tx) => {
     await tx.expensePayrollLine.deleteMany({
+      where: { expenseId: id },
+    });
+    await tx.expenseRawMaterialLine.deleteMany({
       where: { expenseId: id },
     });
 
@@ -1300,6 +1438,7 @@ export async function updateExpense(
               })),
             }
           : undefined,
+        rawMaterialLines: rawMaterialCreateData(data.rawMaterialLines),
       },
     });
   });
@@ -1315,7 +1454,7 @@ export async function deleteExpense(id: string) {
   });
 }
 
-export async function createProduct(data: { name: string; unitType: string }) {
+export async function createProduct(data: { name: string; unitType: string; standardUnitCost?: number }) {
   if (shouldUseLocalStore()) {
     return createLocalProduct(data);
   }
@@ -1325,6 +1464,7 @@ export async function createProduct(data: { name: string; unitType: string }) {
       data: {
         name: data.name,
         unitType: data.unitType,
+        standardUnitCost: new Prisma.Decimal(data.standardUnitCost || 0),
       },
     });
 
@@ -1336,6 +1476,32 @@ export async function createProduct(data: { name: string; unitType: string }) {
     });
 
     return product;
+  });
+}
+
+export async function updateProduct(
+  id: string,
+  data: { name: string; unitType: string; standardUnitCost?: number },
+) {
+  if (shouldUseLocalStore()) {
+    return updateLocalProduct(id, data);
+  }
+
+  const product = await prisma.product.findUnique({
+    where: { id },
+  });
+
+  if (!product) {
+    throw new Error("Producto no encontrado.");
+  }
+
+  return prisma.product.update({
+    where: { id },
+    data: {
+      name: data.name.trim(),
+      unitType: data.unitType.trim(),
+      standardUnitCost: new Prisma.Decimal(data.standardUnitCost || 0),
+    },
   });
 }
 
@@ -1687,6 +1853,8 @@ export async function createIncome(data: {
             productId: line.productId,
             quantity: line.quantity,
             pricePerUnit: line.pricePerUnit,
+            estimatedUnitCost: line.estimatedUnitCost,
+            estimatedCost: line.estimatedCost,
             total: line.total,
           })),
         },
@@ -1738,6 +1906,7 @@ export async function getIncomeById(id: string) {
           productId: line.productId,
           quantity: decimalToNumber(line.quantity),
           pricePerUnit: decimalToNumber(line.pricePerUnit),
+          estimatedUnitCost: decimalToNumber(line.estimatedUnitCost),
         }))
       : [
           {
@@ -1745,6 +1914,7 @@ export async function getIncomeById(id: string) {
             productId: income.productId,
             quantity: decimalToNumber(income.quantity),
             pricePerUnit: decimalToNumber(income.pricePerUnit),
+            estimatedUnitCost: 0,
           },
         ],
   };
@@ -1842,6 +2012,8 @@ export async function updateIncome(
             productId: line.productId,
             quantity: line.quantity,
             pricePerUnit: line.pricePerUnit,
+            estimatedUnitCost: line.estimatedUnitCost,
+            estimatedCost: line.estimatedCost,
             total: line.total,
           })),
         },

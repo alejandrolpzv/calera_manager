@@ -15,6 +15,7 @@ type LocalProduct = {
   id: string;
   name: string;
   unitType: string;
+  standardUnitCost: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -49,6 +50,7 @@ type LocalExpense = {
   amount: number;
   createdById: string;
   payrollLines: LocalPayrollLine[];
+  rawMaterialLines: LocalRawMaterialLine[];
   createdAt: string;
   updatedAt: string;
 };
@@ -62,6 +64,16 @@ type LocalPayrollLine = {
   bonuses?: number | null;
   deductions?: number | null;
   amount: number;
+  notes: string | null;
+};
+
+type LocalRawMaterialLine = {
+  id: string;
+  materialName: string;
+  trips: number;
+  poundsPerTrip: number;
+  totalPounds: number;
+  expectedProductionUnits: number;
   notes: string | null;
 };
 
@@ -93,6 +105,8 @@ type LocalIncomeLine = {
   productId: string;
   quantity: number;
   pricePerUnit: number;
+  estimatedUnitCost: number;
+  estimatedCost: number;
   total: number;
 };
 
@@ -184,6 +198,10 @@ function normalizeStore(
       ...employee,
       dailySalary: Number(employee.dailySalary || 0),
     })),
+    products: (store.products || []).map((product) => ({
+      ...product,
+      standardUnitCost: Number(product.standardUnitCost || 0),
+    })),
     clients: clients.map((client) => ({
       ...client,
       phone: client.phone || null,
@@ -202,6 +220,18 @@ function normalizeStore(
         bonuses: Number(line.bonuses || 0),
         deductions: Number(line.deductions || 0),
       })),
+      rawMaterialLines: (expense.rawMaterialLines || []).map((line) => ({
+        id: line.id || randomUUID(),
+        materialName: line.materialName || "Piedra",
+        trips: Number(line.trips || 0),
+        poundsPerTrip: Number(line.poundsPerTrip || 11000),
+        totalPounds: Number(line.totalPounds ?? Number(line.trips || 0) * Number(line.poundsPerTrip || 11000)),
+        expectedProductionUnits: Number(
+          line.expectedProductionUnits ??
+            (Number(line.totalPounds ?? Number(line.trips || 0) * Number(line.poundsPerTrip || 11000)) / 100),
+        ),
+        notes: line.notes || null,
+      })),
     })),
     incomes: store.incomes.map((income) => ({
       ...income,
@@ -219,13 +249,19 @@ function normalizeStore(
       paymentNotes: income.paymentNotes || null,
       comprobanteUrl: income.comprobanteUrl || null,
       lines: income.lines?.length
-        ? income.lines
+        ? income.lines.map((line) => ({
+            ...line,
+            estimatedUnitCost: Number(line.estimatedUnitCost || 0),
+            estimatedCost: Number(line.estimatedCost ?? line.quantity * Number(line.estimatedUnitCost || 0)),
+          }))
         : [
             {
               id: randomUUID(),
               productId: income.productId,
               quantity: income.quantity,
               pricePerUnit: income.pricePerUnit,
+              estimatedUnitCost: 0,
+              estimatedCost: 0,
               total: income.total,
             },
           ],
@@ -269,6 +305,7 @@ async function ensureStore() {
           id: productAId,
           name: "Calcium Carbonate Standard",
           unitType: "Sacos de 100 lbs",
+          standardUnitCost: 0,
           createdAt,
           updatedAt: createdAt,
         },
@@ -276,6 +313,7 @@ async function ensureStore() {
           id: productBId,
           name: "Calcium Carbonate Fine",
           unitType: "Sacos de 100 lbs",
+          standardUnitCost: 0,
           createdAt,
           updatedAt: createdAt,
         },
@@ -310,6 +348,7 @@ async function ensureStore() {
           amount: 4500,
           createdById: adminId,
           payrollLines: [],
+          rawMaterialLines: [],
           createdAt,
           updatedAt: createdAt,
         },
@@ -321,6 +360,7 @@ async function ensureStore() {
           amount: 8200,
           createdById: adminId,
           payrollLines: [],
+          rawMaterialLines: [],
           createdAt,
           updatedAt: createdAt,
         },
@@ -441,6 +481,7 @@ export async function getLocalProducts() {
         id: product.id,
         name: product.name,
         unitType: product.unitType,
+        standardUnitCost: product.standardUnitCost || 0,
         inventoryQuantity: inventory?.quantity || 0,
       };
     })
@@ -598,18 +639,24 @@ export async function getLocalReceivables() {
   const store = await readStore();
 
   return store.incomes
-    .map((income) => ({
-      id: income.id,
-      date: new Date(income.date),
-      dueDate: income.dueDate ? new Date(income.dueDate) : null,
-      clientName: income.clientName,
-      invoiceNumber: income.invoiceNumber || "",
-      total: income.total,
-      amountPaid: income.amountPaid || 0,
-      balanceDue: Math.max(0, income.total - (income.amountPaid || 0)),
-      paymentStatus: income.paymentStatus || PaymentStatus.PENDING,
-      referenceCode: income.referenceCode || "",
-    }))
+    .map((income) => {
+      const estimatedCost = income.lines.reduce((sum, line) => sum + (line.estimatedCost || 0), 0);
+
+      return {
+        id: income.id,
+        date: new Date(income.date),
+        dueDate: income.dueDate ? new Date(income.dueDate) : null,
+        clientName: income.clientName,
+        invoiceNumber: income.invoiceNumber || "",
+        total: income.total,
+        amountPaid: income.amountPaid || 0,
+        balanceDue: Math.max(0, income.total - (income.amountPaid || 0)),
+        paymentStatus: income.paymentStatus || PaymentStatus.PENDING,
+        referenceCode: income.referenceCode || "",
+        estimatedCost,
+        grossMargin: income.total - estimatedCost,
+      };
+    })
     .filter((income) => income.balanceDue > 0)
     .sort((a, b) => {
       if (a.dueDate && b.dueDate) {
@@ -834,6 +881,7 @@ export async function getLocalDashboardData() {
 }
 
 type LocalReportFilters = {
+  reportType?: string;
   expenseCategory?: string;
   productId?: string;
   paymentStatus?: string;
@@ -847,22 +895,45 @@ export async function getLocalReportData(from: string, to: string, filters: Loca
   const userMap = new Map(store.users.map((user) => [user.id, user]));
   const productMap = new Map(store.products.map((product) => [product.id, product]));
   const query = filters.q?.trim().toLowerCase() || "";
+  const reportType = filters.reportType || "all";
+  const includeExpenses = ["all", "expenses", "payroll", "raw-material"].includes(reportType);
+  const includeIncome = ["all", "income", "receivables"].includes(reportType);
+  const includeProduction = ["all", "production", "raw-material"].includes(reportType);
   const expenses = store.expenses
+    .filter(() => includeExpenses)
     .filter((item) => inRange(item.date, fromDate, toDate))
-    .filter((item) => !filters.expenseCategory || item.category === filters.expenseCategory)
+    .filter((item) => {
+      if (reportType === "payroll") {
+        return item.category === ExpenseCategory.PLANILLA;
+      }
+
+      if (reportType === "raw-material") {
+        return item.category === ExpenseCategory.MATERIA_PRIMA && (item.rawMaterialLines || []).length > 0;
+      }
+
+      return !filters.expenseCategory || item.category === filters.expenseCategory;
+    })
     .filter((item) =>
       query
         ? [
             item.description,
             expenseCategoryLabels[item.category],
             ...item.payrollLines.map((line) => line.employeeName),
+            ...(item.rawMaterialLines || []).map((line) => line.materialName),
           ].some((value) => value?.toLowerCase().includes(query))
         : true,
     )
     .sort((a, b) => +new Date(b.date) - +new Date(a.date));
   const income = store.incomes
+    .filter(() => includeIncome)
     .filter((item) => inRange(item.date, fromDate, toDate))
-    .filter((item) => !filters.paymentStatus || item.paymentStatus === filters.paymentStatus)
+    .filter((item) => {
+      if (reportType === "receivables") {
+        return item.paymentStatus === PaymentStatus.PENDING || item.paymentStatus === PaymentStatus.PARTIAL;
+      }
+
+      return !filters.paymentStatus || item.paymentStatus === filters.paymentStatus;
+    })
     .filter((item) => !filters.productId || item.lines.some((line) => line.productId === filters.productId))
     .filter((item) =>
       query
@@ -876,6 +947,7 @@ export async function getLocalReportData(from: string, to: string, filters: Loca
     )
     .sort((a, b) => +new Date(b.date) - +new Date(a.date));
   const production = store.productions
+    .filter(() => includeProduction)
     .filter((item) => inRange(item.date, fromDate, toDate))
     .filter((item) => !filters.productId || item.productId === filters.productId)
     .filter((item) =>
@@ -889,17 +961,39 @@ export async function getLocalReportData(from: string, to: string, filters: Loca
   const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
   const totalSales = income.reduce((sum, item) => sum + item.total, 0);
   const totalIncome = income.reduce((sum, item) => sum + (item.amountPaid || 0), 0);
+  const totalEstimatedProductionCost = income.reduce(
+    (sum, item) => sum + item.lines.reduce((lineSum, line) => lineSum + (line.estimatedCost || 0), 0),
+    0,
+  );
   const totalProduction = production.reduce((sum, item) => sum + item.quantity, 0);
+  const rawMaterialSummary = expenses.reduce(
+    (summary, expense) => {
+      for (const line of expense.rawMaterialLines || []) {
+        summary.trips += line.trips || 0;
+        summary.totalPounds += line.totalPounds || 0;
+        summary.expectedProductionUnits += line.expectedProductionUnits || 0;
+      }
+
+      return summary;
+    },
+    { trips: 0, totalPounds: 0, expectedProductionUnits: 0 },
+  );
 
   return {
     from,
     to,
-    filters,
+    filters: { ...filters, reportType },
     summary: {
       totalExpenses,
       totalIncome,
       totalSales,
+      totalEstimatedProductionCost,
+      estimatedGrossMargin: totalSales - totalEstimatedProductionCost,
       totalProduction,
+      rawMaterialTrips: rawMaterialSummary.trips,
+      rawMaterialPounds: rawMaterialSummary.totalPounds,
+      expectedProductionFromStone: rawMaterialSummary.expectedProductionUnits,
+      productionVarianceFromStone: totalProduction - rawMaterialSummary.expectedProductionUnits,
       profit: totalIncome - totalExpenses,
       costPerUnit: totalProduction > 0 ? totalExpenses / totalProduction : 0,
     },
@@ -912,9 +1006,13 @@ export async function getLocalReportData(from: string, to: string, filters: Loca
         amount: item.amount,
         createdBy: userMap.get(item.createdById)?.name || "Desconocido",
         payrollLines: item.payrollLines || [],
+        rawMaterialLines: item.rawMaterialLines || [],
       })),
     income: income
-      .map((item) => ({
+      .map((item) => {
+        const estimatedCost = item.lines.reduce((sum, line) => sum + (line.estimatedCost || 0), 0);
+
+        return {
         id: item.id,
         date: new Date(item.date),
         referenceCode: item.referenceCode,
@@ -923,6 +1021,8 @@ export async function getLocalReportData(from: string, to: string, filters: Loca
         quantity: item.lines.reduce((sum, line) => sum + line.quantity, 0),
         pricePerUnit: item.lines[0]?.pricePerUnit || 0,
         total: item.total,
+        estimatedCost,
+        grossMargin: item.total - estimatedCost,
         amountPaid: item.amountPaid || 0,
         balanceDue: Math.max(0, item.total - (item.amountPaid || 0)),
         paymentStatus: item.paymentStatus || PaymentStatus.PENDING,
@@ -934,10 +1034,13 @@ export async function getLocalReportData(from: string, to: string, filters: Loca
           productName: productMap.get(line.productId)?.name || "Desconocido",
           quantity: line.quantity,
           pricePerUnit: line.pricePerUnit,
+          estimatedUnitCost: line.estimatedUnitCost || 0,
+          estimatedCost: line.estimatedCost || 0,
           total: line.total,
         })),
         createdBy: userMap.get(item.createdById)?.name || "Desconocido",
-      })),
+        };
+      }),
     production: production
       .map((item) => ({
         id: item.id,
@@ -990,6 +1093,7 @@ export async function getLocalHistoryData(filters: HistoryFilters) {
         item.description,
         expenseCategoryLabels[item.category],
         ...item.payrollLines.map((line) => line.employeeName),
+        ...(item.rawMaterialLines || []).map((line) => line.materialName),
       ]),
     )
     .sort((a, b) => +new Date(b.date) - +new Date(a.date))
@@ -1001,6 +1105,7 @@ export async function getLocalHistoryData(filters: HistoryFilters) {
       amount: item.amount,
       createdBy: userMap.get(item.createdById)?.name || "Desconocido",
       payrollLines: item.payrollLines || [],
+      rawMaterialLines: item.rawMaterialLines || [],
     }));
 
   const income = store.incomes
@@ -1093,6 +1198,12 @@ export async function createLocalExpense(data: {
     amount: number;
     notes?: string;
   }>;
+  rawMaterialLines?: Array<{
+    materialName: string;
+    trips: number;
+    poundsPerTrip: number;
+    notes?: string;
+  }>;
 }) {
   const store = await readStore();
   const timestamp = nowIso();
@@ -1115,6 +1226,19 @@ export async function createLocalExpense(data: {
       amount: line.amount,
       notes: line.notes || null,
     })),
+    rawMaterialLines: (data.rawMaterialLines || []).map((line) => {
+      const totalPounds = (line.trips || 0) * (line.poundsPerTrip || 11000);
+
+      return {
+        id: randomUUID(),
+        materialName: line.materialName || "Piedra",
+        trips: line.trips || 0,
+        poundsPerTrip: line.poundsPerTrip || 11000,
+        totalPounds,
+        expectedProductionUnits: totalPounds / 100,
+        notes: line.notes || null,
+      };
+    }),
     createdAt: timestamp,
     updatedAt: timestamp,
   });
@@ -1147,6 +1271,10 @@ export async function getLocalExpenseById(id: string) {
       amount: line.amount,
       notes: line.notes || "",
     })),
+    rawMaterialLines: (expense.rawMaterialLines || []).map((line) => ({
+      ...line,
+      notes: line.notes || "",
+    })),
   };
 }
 
@@ -1165,6 +1293,12 @@ export async function updateLocalExpense(
       bonuses?: number;
       deductions?: number;
       amount: number;
+      notes?: string;
+    }>;
+    rawMaterialLines?: Array<{
+      materialName: string;
+      trips: number;
+      poundsPerTrip: number;
       notes?: string;
     }>;
   },
@@ -1191,6 +1325,19 @@ export async function updateLocalExpense(
     amount: line.amount,
     notes: line.notes || null,
   }));
+  expense.rawMaterialLines = (data.rawMaterialLines || []).map((line) => {
+    const totalPounds = (line.trips || 0) * (line.poundsPerTrip || 11000);
+
+    return {
+      id: randomUUID(),
+      materialName: line.materialName || "Piedra",
+      trips: line.trips || 0,
+      poundsPerTrip: line.poundsPerTrip || 11000,
+      totalPounds,
+      expectedProductionUnits: totalPounds / 100,
+      notes: line.notes || null,
+    };
+  });
   expense.updatedAt = nowIso();
 
   await writeStore(store);
@@ -1209,7 +1356,7 @@ export async function deleteLocalExpense(id: string) {
   await writeStore(store);
 }
 
-export async function createLocalProduct(data: { name: string; unitType: string }) {
+export async function createLocalProduct(data: { name: string; unitType: string; standardUnitCost?: number }) {
   const store = await readStore();
   const timestamp = nowIso();
   const productId = randomUUID();
@@ -1218,6 +1365,7 @@ export async function createLocalProduct(data: { name: string; unitType: string 
     id: productId,
     name: data.name,
     unitType: data.unitType,
+    standardUnitCost: data.standardUnitCost || 0,
     createdAt: timestamp,
     updatedAt: timestamp,
   });
@@ -1236,9 +1384,30 @@ export async function createLocalProduct(data: { name: string; unitType: string 
     id: productId,
     name: data.name,
     unitType: data.unitType,
+    standardUnitCost: data.standardUnitCost || 0,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
+}
+
+export async function updateLocalProduct(
+  id: string,
+  data: { name: string; unitType: string; standardUnitCost?: number },
+) {
+  const store = await readStore();
+  const product = store.products.find((item) => item.id === id);
+
+  if (!product) {
+    throw new Error("Producto no encontrado.");
+  }
+
+  product.name = data.name.trim();
+  product.unitType = data.unitType.trim();
+  product.standardUnitCost = data.standardUnitCost || 0;
+  product.updatedAt = nowIso();
+
+  await writeStore(store);
+  return product;
 }
 
 export async function deleteLocalProduct(id: string) {
@@ -1482,6 +1651,7 @@ export async function createLocalIncome(data: {
     productName?: string;
     quantity: number;
     pricePerUnit: number;
+    estimatedUnitCost?: number;
   }>;
   createdById: string;
 }) {
@@ -1520,6 +1690,7 @@ export async function createLocalIncome(data: {
           id: productId,
           name: line.productName,
           unitType: "Unidades",
+          standardUnitCost: 0,
           createdAt: timestamp,
           updatedAt: timestamp,
         });
@@ -1549,12 +1720,16 @@ export async function createLocalIncome(data: {
     }
 
     inventory.lastUpdated = timestamp;
+    const product = store.products.find((item) => item.id === productId);
+    const estimatedUnitCost = line.estimatedUnitCost ?? product?.standardUnitCost ?? 0;
 
     return {
       id: randomUUID(),
       productId,
       quantity: line.quantity,
       pricePerUnit: line.pricePerUnit,
+      estimatedUnitCost,
+      estimatedCost: line.quantity * estimatedUnitCost,
       total: line.quantity * line.pricePerUnit,
     };
   });
@@ -1622,6 +1797,7 @@ export async function getLocalIncomeById(id: string) {
       productId: line.productId,
       quantity: line.quantity,
       pricePerUnit: line.pricePerUnit,
+      estimatedUnitCost: line.estimatedUnitCost || 0,
     })),
   };
 }
@@ -1645,6 +1821,7 @@ export async function updateLocalIncome(
       productName?: string;
       quantity: number;
       pricePerUnit: number;
+      estimatedUnitCost?: number;
     }>;
   },
 ) {
@@ -1697,6 +1874,7 @@ export async function updateLocalIncome(
           id: productId,
           name: line.productName,
           unitType: "Unidades",
+          standardUnitCost: 0,
           createdAt: timestamp,
           updatedAt: timestamp,
         });
@@ -1726,12 +1904,16 @@ export async function updateLocalIncome(
     }
 
     inventory.lastUpdated = timestamp;
+    const product = store.products.find((item) => item.id === productId);
+    const estimatedUnitCost = line.estimatedUnitCost ?? product?.standardUnitCost ?? 0;
 
     return {
       id: randomUUID(),
       productId,
       quantity: line.quantity,
       pricePerUnit: line.pricePerUnit,
+      estimatedUnitCost,
+      estimatedCost: line.quantity * estimatedUnitCost,
       total: line.quantity * line.pricePerUnit,
     };
   });

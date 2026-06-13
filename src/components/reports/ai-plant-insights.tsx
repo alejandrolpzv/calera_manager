@@ -17,6 +17,7 @@ type PlantInsights = {
 };
 
 type ReportFilters = {
+  reportType?: string;
   expenseCategory?: string;
   productId?: string;
   paymentStatus?: string;

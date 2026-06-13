@@ -24,6 +24,7 @@ export async function GET(request: Request) {
   }
 
   const data = await getReportData(parsed.data.from, parsed.data.to, {
+    reportType: searchParams.get("reportType") || "",
     expenseCategory: searchParams.get("expenseCategory") || "",
     productId: searchParams.get("productId") || "",
     paymentStatus: searchParams.get("paymentStatus") || "",

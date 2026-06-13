@@ -13,14 +13,19 @@
 }
 
 :root {
-  --background: #f7f3ec;
-  --foreground: #17212b;
-  --card: rgba(255, 255, 255, 0.82);
-  --muted: #5b6875;
-  --line: rgba(23, 33, 43, 0.08);
-  --accent: #0f766e;
-  --accent-strong: #115e59;
-  --highlight: #f59e0b;
+  --background: #f3eee4;
+  --foreground: #111827;
+  --paper: #fbf7ef;
+  --card: rgba(255, 252, 246, 0.9);
+  --card-solid: #fffaf2;
+  --muted: #647083;
+  --line: rgba(17, 24, 39, 0.11);
+  --accent: #087f6f;
+  --accent-strong: #065f55;
+  --accent-soft: #d8f3ec;
+  --highlight: #f4a51c;
+  --highlight-soft: #fff0c9;
+  --ink: #07111f;
   --danger: #b91c1c;
 }
 
@@ -32,15 +37,19 @@ html {
   min-width: 0;
   overflow-x: hidden;
   background:
-    radial-gradient(circle at top left, rgba(245, 158, 11, 0.18), transparent 22%),
-    radial-gradient(circle at top right, rgba(15, 118, 110, 0.16), transparent 26%),
-    linear-gradient(180deg, #f8f5ef 0%, #f0e9dd 100%);
+    radial-gradient(circle at 0% 0%, rgba(244, 165, 28, 0.24), transparent 24%),
+    radial-gradient(circle at 100% 8%, rgba(8, 127, 111, 0.2), transparent 28%),
+    linear-gradient(180deg, #fbf7ef 0%, #eee4d2 100%);
 }
 
 body {
   min-width: 0;
   overflow-x: hidden;
-  background: var(--background);
+  background:
+    linear-gradient(rgba(17, 24, 39, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17, 24, 39, 0.028) 1px, transparent 1px),
+    var(--background);
+  background-size: 28px 28px;
   color: var(--foreground);
   font-family: var(--font-manrope), sans-serif;
 }
@@ -70,21 +79,26 @@ table {
   background: var(--card);
   backdrop-filter: blur(18px);
   border: 1px solid var(--line);
-  box-shadow: 0 16px 48px rgba(59, 53, 41, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.76),
+    0 20px 60px rgba(55, 45, 31, 0.1);
 }
 
 .metric-gradient {
   background:
-    linear-gradient(140deg, rgba(255, 255, 255, 0.95), rgba(255, 247, 237, 0.86)),
-    linear-gradient(135deg, rgba(15, 118, 110, 0.12), transparent 55%);
+    linear-gradient(140deg, rgba(255, 252, 246, 0.98), rgba(255, 246, 230, 0.9)),
+    linear-gradient(135deg, rgba(8, 127, 111, 0.13), transparent 58%);
 }
 
 .plant-hero {
   background:
-    radial-gradient(circle at 12% 12%, rgba(255, 255, 255, 0.22), transparent 24%),
-    radial-gradient(circle at 86% 8%, rgba(245, 158, 11, 0.18), transparent 22%),
-    linear-gradient(135deg, #07111f 0%, #0f2f2d 54%, #17212b 100%);
-  box-shadow: 0 24px 70px rgba(7, 17, 31, 0.2);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    radial-gradient(circle at 12% 12%, rgba(255, 255, 255, 0.24), transparent 25%),
+    radial-gradient(circle at 88% 10%, rgba(244, 165, 28, 0.2), transparent 23%),
+    linear-gradient(135deg, #06101d 0%, #0a3732 56%, #141d2b 100%);
+  background-size: 32px 32px, 32px 32px, auto, auto, auto;
+  box-shadow: 0 28px 80px rgba(7, 17, 31, 0.24);
 }
 
 .touch-tile {
@@ -95,7 +109,31 @@ table {
 
 .industrial-grid {
   background-image:
-    linear-gradient(rgba(23, 33, 43, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 33, 43, 0.03) 1px, transparent 1px);
-  background-size: 26px 26px;
+    radial-gradient(circle at top left, rgba(244, 165, 28, 0.12), transparent 28%),
+    radial-gradient(circle at 100% 0%, rgba(8, 127, 111, 0.12), transparent 28%);
+}
+
+.control-ruler {
+  position: relative;
+}
+
+.control-ruler::before {
+  background: linear-gradient(90deg, var(--accent), var(--highlight));
+  border-radius: 999px;
+  content: "";
+  height: 3px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.tap-target {
+  min-height: 48px;
+}
+
+@media (max-width: 767px) {
+  body {
+    background-size: 22px 22px;
+  }
 }

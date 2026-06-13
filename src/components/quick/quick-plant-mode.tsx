@@ -15,6 +15,7 @@ type Product = {
   id: string;
   name: string;
   unitType: string;
+  standardUnitCost: number;
   inventoryQuantity: number;
 };
 
@@ -57,6 +58,13 @@ export function QuickPlantMode({
     [salePrice, saleQuantity],
   );
 
+  function addDaysToInputDate(value: string, days: number) {
+    const [year, month, day] = value.split("-").map(Number);
+    const date = year && month && day ? new Date(year, month - 1, day) : new Date();
+    date.setDate(date.getDate() + days);
+    return date.toISOString().slice(0, 10);
+  }
+
   async function submitQuickRecord(formData: FormData) {
     if (savingRef.current) {
       return;
@@ -89,7 +97,7 @@ export function QuickPlantMode({
             }
           : {
               type: "income",
-              label: salePaidNow ? "Venta cobrada" : "Venta pendiente",
+              label: salePaidNow ? "Venta cobrada" : "Venta Net 30",
               detail: `${formData.get("clientName") || "Cliente"} | ${product?.name || "Producto"}`,
               amount: formatCurrency(saleTotal),
               savedAt: new Date().toLocaleTimeString("es-HN", { hour: "2-digit", minute: "2-digit" }),
@@ -114,13 +122,16 @@ export function QuickPlantMode({
               date: formData.get("date"),
               clientName: formData.get("clientName"),
               amountPaid: salePaidNow ? saleTotal : 0,
+              dueDate: salePaidNow ? "" : addDaysToInputDate(String(formData.get("date") || defaultDate), 30),
               paymentStatus: salePaidNow ? PaymentStatus.PAID : PaymentStatus.PENDING,
+              paymentNotes: salePaidNow ? "" : "Credito Net 30",
               allowInvoiceCreation: false,
               lines: [
                 {
                   productId: formData.get("productId"),
                   quantity: formData.get("quantity"),
                   pricePerUnit: formData.get("pricePerUnit"),
+                  estimatedUnitCost: product?.standardUnitCost || 0,
                 },
               ],
             };
@@ -449,7 +460,9 @@ function IncomeQuickFields({
       <label className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4">
         <span>
           <span className="block font-bold text-slate-900">Cobrado ahora</span>
-          <span className="block text-sm text-slate-500">Si no, queda como cuenta por cobrar.</span>
+          <span className="block text-sm text-slate-500">
+            Si no, queda como cuenta por cobrar Net 30.
+          </span>
         </span>
         <input
           type="checkbox"

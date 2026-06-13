@@ -13,6 +13,12 @@ type ReportData = {
     totalExpenses: number;
     totalIncome: number;
     totalSales: number;
+    totalEstimatedProductionCost?: number;
+    estimatedGrossMargin?: number;
+    rawMaterialTrips?: number;
+    rawMaterialPounds?: number;
+    expectedProductionFromStone?: number;
+    productionVarianceFromStone?: number;
     totalProduction: number;
     profit: number;
     costPerUnit: number;
@@ -34,6 +40,15 @@ type ReportData = {
       amount: number;
       notes?: string | null;
     }>;
+    rawMaterialLines?: Array<{
+      id: string;
+      materialName: string;
+      trips: number;
+      poundsPerTrip: number;
+      totalPounds: number;
+      expectedProductionUnits: number;
+      notes?: string | null;
+    }>;
   }>;
   income: Array<{
     id?: string;
@@ -43,6 +58,8 @@ type ReportData = {
     quantity: number;
     pricePerUnit: number;
     total: number;
+    estimatedCost?: number;
+    grossMargin?: number;
     amountPaid?: number;
     balanceDue?: number;
     paymentStatus?: string;
@@ -55,6 +72,8 @@ type ReportData = {
       productName: string;
       quantity: number;
       pricePerUnit: number;
+      estimatedUnitCost?: number;
+      estimatedCost?: number;
       total: number;
     }>;
   }>;
@@ -95,6 +114,20 @@ function buildTable(title: string, rows: Array<Array<string | number>>) {
 
 export function ReportActions({ data }: { data: ReportData }) {
   const pendingTotal = data.income.reduce((sum, item) => sum + (item.balanceDue || 0), 0);
+  const totalEstimatedProductionCost = data.summary.totalEstimatedProductionCost || 0;
+  const estimatedGrossMargin = data.summary.estimatedGrossMargin ?? data.summary.totalSales - totalEstimatedProductionCost;
+  const payrollRows = data.expenses.flatMap((expense) =>
+    (expense.payrollLines || []).map((line) => ({
+      expense,
+      line,
+    })),
+  );
+  const rawMaterialRows = data.expenses.flatMap((expense) =>
+    (expense.rawMaterialLines || []).map((line) => ({
+      expense,
+      line,
+    })),
+  );
   const collectionRate = data.summary.totalSales > 0
     ? (data.summary.totalIncome / data.summary.totalSales) * 100
     : 0;
@@ -109,6 +142,12 @@ export function ReportActions({ data }: { data: ReportData }) {
           "Cobrado",
           "Pendiente",
           "Gastos",
+          "Costo Prod. Ventas",
+          "Margen Bruto Est.",
+          "Viajes Piedra",
+          "Libras Piedra",
+          "Prod. Esperada Piedra",
+          "Diferencia vs Prod.",
           "Utilidad Caja",
           "Produccion",
           "Costo por Unidad",
@@ -121,6 +160,12 @@ export function ReportActions({ data }: { data: ReportData }) {
           data.summary.totalIncome,
           pendingTotal,
           data.summary.totalExpenses,
+          totalEstimatedProductionCost,
+          estimatedGrossMargin,
+          data.summary.rawMaterialTrips || 0,
+          data.summary.rawMaterialPounds || 0,
+          data.summary.expectedProductionFromStone || 0,
+          data.summary.productionVarianceFromStone || 0,
           data.summary.profit,
           data.summary.totalProduction,
           data.summary.costPerUnit,
@@ -129,13 +174,66 @@ export function ReportActions({ data }: { data: ReportData }) {
       ]),
 
       buildTable("Gastos", [
-        ["Fecha", "Categoria", "Descripcion", "Monto", "Creado Por"],
+        ["Fecha", "Categoria", "Descripcion", "Monto", "Creado Por", "Detalle Planilla"],
         ...data.expenses.map((item) => [
           formatDate(item.date),
           item.category,
           item.description,
           item.amount,
           item.createdBy,
+          item.payrollLines?.length
+            ? item.payrollLines
+                .map((line) => `${line.employeeName}: ${line.workDays || 0} dias, ${line.amount}`)
+                .join(" | ")
+            : "",
+        ]),
+      ]),
+
+      buildTable("Planilla Detallada", [
+        [
+          "Fecha",
+          "Gasto",
+          "Empleado",
+          "Dias",
+          "Salario Diario",
+          "Bonos",
+          "Deducciones",
+          "Monto",
+          "Notas",
+        ],
+        ...payrollRows.map(({ expense, line }) => [
+          formatDate(expense.date),
+          expense.description,
+          line.employeeName,
+          line.workDays || 0,
+          line.dailySalary || 0,
+          line.bonuses || 0,
+          line.deductions || 0,
+          line.amount,
+          line.notes || "",
+        ]),
+      ]),
+
+      buildTable("Materia Prima Detallada", [
+        [
+          "Fecha",
+          "Gasto",
+          "Subgrupo",
+          "Viajes",
+          "Libras/Viaje",
+          "Libras Totales",
+          "Produccion Esperada",
+          "Notas",
+        ],
+        ...rawMaterialRows.map(({ expense, line }) => [
+          formatDate(expense.date),
+          expense.description,
+          line.materialName,
+          line.trips,
+          line.poundsPerTrip,
+          line.totalPounds,
+          line.expectedProductionUnits,
+          line.notes || "",
         ]),
       ]),
 
@@ -148,6 +246,8 @@ export function ReportActions({ data }: { data: ReportData }) {
           "Cantidad",
           "Precio/Unidad",
           "Total",
+          "Costo Estimado",
+          "Margen Bruto",
           "Pagado",
           "Saldo",
           "Estado de Pago",
@@ -163,6 +263,8 @@ export function ReportActions({ data }: { data: ReportData }) {
           item.quantity,
           item.pricePerUnit,
           item.total,
+          item.estimatedCost || 0,
+          item.grossMargin || 0,
           item.amountPaid || 0,
           item.balanceDue || 0,
           item.paymentStatus || "",
@@ -170,6 +272,33 @@ export function ReportActions({ data }: { data: ReportData }) {
           item.clientName,
           item.createdBy,
         ]),
+      ]),
+
+      buildTable("Lineas de Ingreso", [
+        [
+          "Fecha",
+          "Cliente",
+          "Factura",
+          "Producto",
+          "Cantidad",
+          "Precio/Unidad",
+          "Costo/Unidad",
+          "Costo Estimado",
+          "Total",
+        ],
+        ...data.income.flatMap((item) =>
+          (item.lines?.length ? item.lines : []).map((line) => [
+            formatDate(item.date),
+            item.clientName,
+            item.invoiceNumber || item.referenceCode || "",
+            line.productName,
+            line.quantity,
+            line.pricePerUnit,
+            line.estimatedUnitCost || 0,
+            line.estimatedCost || 0,
+            line.total,
+          ]),
+        ),
       ]),
 
       buildTable("Produccion", [
@@ -224,6 +353,12 @@ export function ReportActions({ data }: { data: ReportData }) {
         ["Cobrado", formatCurrency(data.summary.totalIncome)],
         ["Pendiente", formatCurrency(pendingTotal)],
         ["Gastos", formatCurrency(data.summary.totalExpenses)],
+        ["Costo Prod. Ventas", formatCurrency(totalEstimatedProductionCost)],
+        ["Margen Bruto Est.", formatCurrency(estimatedGrossMargin)],
+        ["Viajes Piedra", formatNumber(data.summary.rawMaterialTrips || 0)],
+        ["Libras Piedra", formatNumber(data.summary.rawMaterialPounds || 0)],
+        ["Prod. Esperada Piedra", formatNumber(data.summary.expectedProductionFromStone || 0)],
+        ["Diferencia vs Prod.", formatNumber(data.summary.productionVarianceFromStone || 0)],
         ["Utilidad Caja", formatCurrency(data.summary.profit)],
         ["Produccion", formatNumber(data.summary.totalProduction)],
         ["Costo por Unidad", formatCurrency(data.summary.costPerUnit)],
@@ -235,24 +370,90 @@ export function ReportActions({ data }: { data: ReportData }) {
       startY: (pdf as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY
         ? ((pdf as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY || 44) + 10
         : 80,
-      head: [["Gasto", "Categoria", "Monto"]],
-      body: data.expenses.slice(0, 12).map((item) => [
-        `${formatDate(item.date)} - ${item.description}`,
+      head: [["Fecha", "Gasto", "Categoria", "Monto", "Planilla"]],
+      body: data.expenses.map((item) => [
+        formatDate(item.date),
+        item.description,
         item.category,
         formatCurrency(item.amount),
+        item.payrollLines?.length
+          ? item.payrollLines.map((line) => `${line.employeeName}: ${formatCurrency(line.amount)}`).join("\n")
+          : "",
       ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      columnStyles: {
+        1: { cellWidth: 58 },
+        4: { cellWidth: 45 },
+      },
     });
+
+    if (payrollRows.length) {
+      autoTable(pdf, {
+        startY: (pdf as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY
+          ? ((pdf as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY || 120) + 10
+          : 140,
+        head: [["Planilla", "Empleado", "Dias", "Salario", "Bonos", "Deducciones", "Monto"]],
+        body: payrollRows.map(({ expense, line }) => [
+          formatDate(expense.date),
+          line.employeeName,
+          formatNumber(line.workDays || 0),
+          formatCurrency(line.dailySalary || 0),
+          formatCurrency(line.bonuses || 0),
+          formatCurrency(line.deductions || 0),
+          formatCurrency(line.amount),
+        ]),
+        styles: { fontSize: 8, cellPadding: 2 },
+      });
+    }
+
+    if (rawMaterialRows.length) {
+      autoTable(pdf, {
+        startY: (pdf as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY
+          ? ((pdf as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY || 120) + 10
+          : 140,
+        head: [["Materia Prima", "Subgrupo", "Viajes", "Lb/Viaje", "Lb Total", "Prod. Esperada"]],
+        body: rawMaterialRows.map(({ expense, line }) => [
+          `${formatDate(expense.date)} - ${expense.description}`,
+          line.materialName,
+          formatNumber(line.trips),
+          formatNumber(line.poundsPerTrip),
+          formatNumber(line.totalPounds),
+          formatNumber(line.expectedProductionUnits),
+        ]),
+        styles: { fontSize: 8, cellPadding: 2 },
+      });
+    }
 
     autoTable(pdf, {
       startY: (pdf as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY
         ? ((pdf as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY || 120) + 10
         : 140,
-      head: [["Venta", "Productos", "Total"]],
-      body: data.income.slice(0, 10).map((item) => [
+      head: [["Venta", "Productos", "Total", "Margen Est."]],
+      body: data.income.map((item) => [
         `${formatDate(item.date)} - ${item.clientName}${item.referenceCode ? ` (${item.referenceCode})` : ""}`,
         item.lines?.map((line) => `${line.productName} x ${formatNumber(line.quantity)}`).join(", ") || item.productName,
         formatCurrency(item.total),
+        formatCurrency(item.grossMargin || 0),
       ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      columnStyles: {
+        0: { cellWidth: 45 },
+        1: { cellWidth: 80 },
+      },
+    });
+
+    autoTable(pdf, {
+      startY: (pdf as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY
+        ? ((pdf as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY || 160) + 10
+        : 180,
+      head: [["Produccion", "Producto", "Cantidad", "Notas"]],
+      body: data.production.map((item) => [
+        formatDate(item.date),
+        item.productName,
+        formatNumber(item.quantity),
+        item.notes || "",
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
     });
 
     pdf.save(`reporte-fabrica-${data.from}-a-${data.to}.pdf`);

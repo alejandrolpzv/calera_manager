@@ -12,6 +12,7 @@ type Product = {
   id: string;
   name: string;
   unitType: string;
+  standardUnitCost: number;
   inventoryQuantity: number;
 };
 
@@ -21,8 +22,36 @@ export function ProductForm({ products }: { products: Product[] }) {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState("");
+  const [savingProductId, setSavingProductId] = useState("");
   const savingRef = useRef(false);
   const deletingRef = useRef(false);
+
+  async function onUpdateProduct(productId: string, formData: FormData) {
+    setSavingProductId(productId);
+    setError("");
+    setSuccess("");
+
+    const response = await fetch(`/api/products/${productId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: formData.get("name"),
+        unitType: formData.get("unitType"),
+        standardUnitCost: Number(formData.get("standardUnitCost") || 0),
+      }),
+    });
+
+    const result = await response.json().catch(() => ({ error: "No se pudo actualizar el producto." }));
+    setSavingProductId("");
+
+    if (!response.ok) {
+      setError(result.error || "No se pudo actualizar el producto.");
+      return;
+    }
+
+    setSuccess("Producto actualizado.");
+    startTransition(() => router.refresh());
+  }
 
   async function onDeleteProduct(productId: string) {
     if (deletingRef.current) {
@@ -80,6 +109,7 @@ export function ProductForm({ products }: { products: Product[] }) {
             body: JSON.stringify({
               name: formData.get("name"),
               unitType: formData.get("unitType"),
+              standardUnitCost: Number(formData.get("standardUnitCost") || 0),
             }),
           });
 
@@ -110,6 +140,21 @@ export function ProductForm({ products }: { products: Product[] }) {
           <Input id="product-unit" name="unitType" defaultValue="Sacos de 100 lbs" required />
         </div>
 
+        <div>
+          <Label htmlFor="product-cost">Costo estandar por unidad</Label>
+          <Input
+            id="product-cost"
+            name="standardUnitCost"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Se usa para estimar margen en ventas, especialmente cuentas Net 30.
+          </p>
+        </div>
+
         {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}
         {success ? <p className="text-sm font-medium text-teal-700">{success}</p> : null}
 
@@ -126,25 +171,51 @@ export function ProductForm({ products }: { products: Product[] }) {
           {products.length ? (
             products.map((product) => (
               <div key={product.id} className="rounded-2xl bg-slate-50 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-slate-900">{product.name}</p>
-                    <p className="mt-1 text-sm text-slate-500">{product.unitType}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Stock actual: {product.inventoryQuantity}
-                    </p>
+                <form action={(formData) => onUpdateProduct(product.id, formData)} className="grid gap-3">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <Label htmlFor={`product-name-${product.id}`}>Producto</Label>
+                      <Input id={`product-name-${product.id}`} name="name" defaultValue={product.name} required />
+                    </div>
+                    <div>
+                      <Label htmlFor={`product-unit-${product.id}`}>Unidad</Label>
+                      <Input id={`product-unit-${product.id}`} name="unitType" defaultValue={product.unitType} required />
+                    </div>
+                    <div>
+                      <Label htmlFor={`product-cost-${product.id}`}>Costo/unidad</Label>
+                      <Input
+                        id={`product-cost-${product.id}`}
+                        name="standardUnitCost"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue={String(product.standardUnitCost || 0)}
+                      />
+                    </div>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="px-2 py-2 text-red-700"
-                    onClick={() => onDeleteProduct(product.id)}
-                    disabled={deletingId === product.id}
-                  >
-                    <Trash2 className="mr-1 h-4 w-4" />
-                    {deletingId === product.id ? "Eliminando..." : "Eliminar"}
-                  </Button>
-                </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-slate-500">
+                      Stock actual: {product.inventoryQuantity} | Costo estimado: L{" "}
+                      {(product.standardUnitCost || 0).toFixed(2)}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button type="submit" variant="secondary" className="px-3 py-2" disabled={savingProductId === product.id}>
+                        {savingProductId === product.id ? "Guardando..." : "Guardar"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="px-2 py-2 text-red-700"
+                        onClick={() => onDeleteProduct(product.id)}
+                        disabled={deletingId === product.id}
+                      >
+                        <Trash2 className="mr-1 h-4 w-4" />
+                        {deletingId === product.id ? "Eliminando..." : "Eliminar"}
+                      </Button>
+                    </div>
+                  </div>
+                </form>
               </div>
             ))
           ) : (

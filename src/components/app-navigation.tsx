@@ -54,10 +54,10 @@ export function AppNavigation({ role }: { role: UserRole }) {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                "tap-target flex items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-black transition",
                 active
-                  ? "bg-teal-700 text-white"
-                  : "text-slate-700 hover:bg-white/70",
+                  ? "bg-slate-950 text-white shadow-lg shadow-slate-950/10"
+                  : "text-slate-700 hover:bg-white/75",
               )}
             >
               <Icon className="h-4 w-4" />
@@ -70,7 +70,7 @@ export function AppNavigation({ role }: { role: UserRole }) {
       {menuOpen ? (
         <div className="fixed inset-0 z-40 bg-slate-950/20 backdrop-blur-[2px] md:hidden" onClick={() => setMenuOpen(false)}>
           <div
-            className="glass-panel absolute inset-x-4 bottom-24 rounded-[28px] p-3"
+            className="glass-panel absolute inset-x-3 bottom-24 rounded-[30px] p-3"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="grid grid-cols-2 gap-2">
@@ -85,7 +85,7 @@ export function AppNavigation({ role }: { role: UserRole }) {
                     onClick={() => setMenuOpen(false)}
                     className={cn(
                       "flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold transition",
-                      active ? "bg-teal-700 text-white" : "bg-white/70 text-slate-700",
+                      active ? "bg-slate-950 text-white" : "bg-white/75 text-slate-700",
                     )}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
@@ -98,7 +98,7 @@ export function AppNavigation({ role }: { role: UserRole }) {
         </div>
       ) : null}
 
-      <nav className="glass-panel fixed inset-x-3 bottom-3 z-50 rounded-[24px] p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:hidden">
+      <nav className="glass-panel fixed inset-x-3 bottom-3 z-50 rounded-[26px] p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:hidden">
         <div className="grid grid-cols-5 gap-1">
           {mobilePrimaryItems.map((item) => {
             const Icon = icons[item.href as keyof typeof icons] || CircleHelp;
@@ -112,7 +112,7 @@ export function AppNavigation({ role }: { role: UserRole }) {
                 className={cn(
                   "flex min-w-0 flex-col items-center justify-center rounded-2xl px-1 py-2 text-[10px] font-bold transition",
                   active
-                    ? "bg-teal-700 text-white"
+                    ? "bg-slate-950 text-white shadow-sm"
                     : "text-slate-600 hover:bg-white/80",
                 )}
               >
@@ -126,7 +126,7 @@ export function AppNavigation({ role }: { role: UserRole }) {
             onClick={() => setMenuOpen((open) => !open)}
             className={cn(
               "flex min-w-0 flex-col items-center justify-center rounded-2xl px-1 py-2 text-[10px] font-bold transition",
-              menuOpen ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-white/80",
+              menuOpen ? "bg-[var(--accent)] text-white" : "text-slate-600 hover:bg-white/80",
             )}
           >
             <Menu className="mb-1 h-5 w-5" />

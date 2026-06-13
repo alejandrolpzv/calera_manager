@@ -14,6 +14,7 @@ type Product = {
   id: string;
   name: string;
   unitType: string;
+  standardUnitCost: number;
   inventoryQuantity: number;
 };
 
@@ -28,6 +29,7 @@ type SaleLine = {
   manualProduct: boolean;
   quantity: string;
   pricePerUnit: string;
+  estimatedUnitCost: string;
 };
 
 export function IncomeForm({
@@ -58,6 +60,7 @@ export function IncomeForm({
       productName?: string;
       quantity: number;
       pricePerUnit: number;
+      estimatedUnitCost?: number;
     }>;
   } | null;
   canManageProducts?: boolean;
@@ -74,9 +77,19 @@ export function IncomeForm({
           manualProduct: false,
           quantity: String(line.quantity),
           pricePerUnit: String(line.pricePerUnit),
+          estimatedUnitCost: String(line.estimatedUnitCost || 0),
         }))
-      : [{ productId: products[0]?.id || "", productName: "", manualProduct: false, quantity: "", pricePerUnit: "" }],
+      : [{
+          productId: products[0]?.id || "",
+          productName: "",
+          manualProduct: false,
+          quantity: "",
+          pricePerUnit: "",
+          estimatedUnitCost: String(products[0]?.standardUnitCost || 0),
+        }],
   );
+  const [saleDate, setSaleDate] = useState(initialValues?.date || defaultDate);
+  const [dueDate, setDueDate] = useState(initialValues?.dueDate || "");
   const [allowInvoiceCreation, setAllowInvoiceCreation] = useState(
     initialValues?.sourceApp === "cotizador-cdh",
   );
@@ -96,7 +109,13 @@ export function IncomeForm({
         setLines((current) =>
           current.map((line, index) =>
             index === current.length - 1 && !line.productId
-              ? { ...line, productId: storedProductId, manualProduct: false, productName: "" }
+              ? {
+                  ...line,
+                  productId: storedProductId,
+                  manualProduct: false,
+                  productName: "",
+                  estimatedUnitCost: String(getProductCost(storedProductId)),
+                }
               : line,
           ),
         );
@@ -115,11 +134,38 @@ export function IncomeForm({
       }, 0),
     [lines],
   );
+  const estimatedCost = useMemo(
+    () =>
+      lines.reduce((sum, line) => {
+        const quantity = Number(line.quantity);
+        const cost = Number(line.estimatedUnitCost);
+        return sum + (Number.isFinite(quantity) ? quantity : 0) * (Number.isFinite(cost) ? cost : 0);
+      }, 0),
+    [lines],
+  );
+  const estimatedMargin = total - estimatedCost;
+
+  function getProductCost(productId: string) {
+    return products.find((product) => product.id === productId)?.standardUnitCost || 0;
+  }
+
+  function addDaysToInputDate(value: string, days: number) {
+    const [year, month, day] = value.split("-").map(Number);
+    const date = year && month && day ? new Date(year, month - 1, day) : new Date();
+    date.setDate(date.getDate() + days);
+    return date.toISOString().slice(0, 10);
+  }
 
   function updateLine(index: number, field: keyof SaleLine, value: string) {
     setLines((current) =>
       current.map((line, currentIndex) =>
-        currentIndex === index ? { ...line, [field]: value } : line,
+        currentIndex === index
+          ? {
+              ...line,
+              [field]: value,
+              ...(field === "productId" ? { estimatedUnitCost: String(getProductCost(value)) } : {}),
+            }
+          : line,
       ),
     );
   }
@@ -127,7 +173,14 @@ export function IncomeForm({
   function addLine() {
     setLines((current) => [
       ...current,
-      { productId: products[0]?.id || "", productName: "", manualProduct: false, quantity: "", pricePerUnit: "" },
+      {
+        productId: products[0]?.id || "",
+        productName: "",
+        manualProduct: false,
+        quantity: "",
+        pricePerUnit: "",
+        estimatedUnitCost: String(products[0]?.standardUnitCost || 0),
+      },
     ]);
   }
 
@@ -170,7 +223,7 @@ export function IncomeForm({
               sourceApp: formData.get("sourceApp"),
               invoiceNumber: formData.get("invoiceNumber"),
               amountPaid: Number(formData.get("amountPaid") || 0),
-              dueDate: formData.get("dueDate"),
+              dueDate,
               paymentStatus: formData.get("paymentStatus"),
               paymentNotes: formData.get("paymentNotes"),
               comprobanteUrl: formData.get("comprobanteUrl"),
@@ -187,6 +240,7 @@ export function IncomeForm({
                   productName: line.manualProduct ? line.productName.trim() : "",
                   quantity: Number(line.quantity),
                   pricePerUnit: Number(line.pricePerUnit),
+                  estimatedUnitCost: Number(line.estimatedUnitCost || 0),
                 })),
             }),
           });
@@ -219,7 +273,8 @@ export function IncomeForm({
             id="income-date"
             name="date"
             type="date"
-            defaultValue={initialValues?.date || defaultDate}
+            value={saleDate}
+            onChange={(event) => setSaleDate(event.target.value)}
             required
           />
         </div>
@@ -297,13 +352,26 @@ export function IncomeForm({
               />
             </div>
             <div>
-              <Label htmlFor="income-dueDate">Fecha de vencimiento</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="income-dueDate">Fecha de vencimiento</Label>
+                <button
+                  type="button"
+                  className="text-xs font-black uppercase tracking-[0.14em] text-teal-700"
+                  onClick={() => setDueDate(addDaysToInputDate(saleDate, 30))}
+                >
+                  Net 30
+                </button>
+              </div>
               <Input
                 id="income-dueDate"
                 name="dueDate"
                 type="date"
-                defaultValue={initialValues?.dueDate || ""}
+                value={dueDate}
+                onChange={(event) => setDueDate(event.target.value)}
               />
+              <p className="mt-2 text-xs text-slate-500">
+                Usa Net 30 para clientes que pagan 30 dias despues de facturar.
+              </p>
             </div>
           </div>
 
@@ -411,6 +479,9 @@ export function IncomeForm({
                                   manualProduct: !item.manualProduct,
                                   productId: !item.manualProduct ? "" : products[0]?.id || "",
                                   productName: item.manualProduct ? "" : item.productName,
+                                  estimatedUnitCost: !item.manualProduct
+                                    ? "0"
+                                    : String(products[0]?.standardUnitCost || 0),
                                 }
                               : item,
                           ),
@@ -451,16 +522,36 @@ export function IncomeForm({
                         placeholder="0.00"
                       />
                     </div>
+                    <div>
+                      <Label htmlFor={`income-cost-${index}`}>Costo estimado/unidad</Label>
+                      <Input
+                        id={`income-cost-${index}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={line.estimatedUnitCost}
+                        onChange={(event) => updateLine(index, "estimatedUnitCost", event.target.value)}
+                        placeholder="0.00"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-slate-700">
-                    Subtotal: L{" "}
-                    {(
-                      (Number(line.quantity) || 0) * (Number(line.pricePerUnit) || 0)
-                    ).toFixed(2)}
-                  </p>
+                  <div className="text-sm font-semibold text-slate-700">
+                    <p>
+                      Subtotal: L{" "}
+                      {(
+                        (Number(line.quantity) || 0) * (Number(line.pricePerUnit) || 0)
+                      ).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Costo: L{" "}
+                      {(
+                        (Number(line.quantity) || 0) * (Number(line.estimatedUnitCost) || 0)
+                      ).toFixed(2)}
+                    </p>
+                  </div>
                   <Button
                     type="button"
                     variant="ghost"
@@ -486,6 +577,16 @@ export function IncomeForm({
             value={total.toFixed(2)}
             readOnly
           />
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl bg-amber-50 p-3">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-700">Costo estimado</p>
+              <p className="mt-1 text-lg font-black text-amber-950">L {estimatedCost.toFixed(2)}</p>
+            </div>
+            <div className="rounded-2xl bg-teal-50 p-3">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-700">Margen estimado</p>
+              <p className="mt-1 text-lg font-black text-teal-950">L {estimatedMargin.toFixed(2)}</p>
+            </div>
+          </div>
         </div>
 
         {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}

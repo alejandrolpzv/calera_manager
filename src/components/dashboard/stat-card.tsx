@@ -23,29 +23,32 @@ export function StatCard({
 }: StatCardProps) {
   const AccentIcon = trend === "down" ? ArrowDown : ArrowUp;
   const accentStyles = {
-    teal: "from-teal-700/15 to-transparent text-teal-900",
-    amber: "from-amber-500/20 to-transparent text-amber-900",
-    slate: "from-slate-500/15 to-transparent text-slate-900",
+    teal: "bg-teal-700",
+    amber: "bg-amber-500",
+    slate: "bg-slate-950",
   };
 
   const content = (
     <Card
-      className={`metric-gradient min-w-0 overflow-hidden p-4 transition sm:p-5 ${href ? "hover:-translate-y-0.5 hover:ring-2 hover:ring-teal-200" : ""}`}
+      className={`metric-gradient control-ruler min-w-0 overflow-hidden p-4 pt-5 transition sm:p-5 sm:pt-6 ${href ? "hover:-translate-y-0.5 hover:ring-2 hover:ring-teal-200" : ""}`}
     >
-      <div className={`mb-4 h-14 rounded-3xl bg-gradient-to-br sm:mb-6 sm:h-20 ${accentStyles[accent]}`} />
-      <p className="text-sm font-semibold text-slate-500">{label}</p>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <span className={`h-3 w-12 rounded-full ${accentStyles[accent]}`} />
+        {href ? <span className="text-[11px] font-black uppercase tracking-[0.14em] text-teal-700">Abrir</span> : null}
+      </div>
+      <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
-        <p className="min-w-0 break-words text-2xl font-extrabold text-slate-950 sm:text-3xl">
+        <p className="min-w-0 break-words text-3xl font-black tracking-[-0.055em] text-slate-950 sm:text-4xl">
           {tone === "currency" ? formatCurrency(value) : formatNumber(value)}
         </p>
         {trend ? (
-          <span className="inline-flex items-center rounded-full bg-white/80 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          <span className="inline-flex items-center rounded-full bg-white/85 px-2.5 py-1 text-xs font-bold text-slate-700 ring-1 ring-slate-200">
             <AccentIcon className="mr-1 h-3 w-3" />
             {trend === "up" ? "sube" : "baja"}
           </span>
         ) : null}
       </div>
-      {href ? <p className="mt-4 text-xs font-semibold text-teal-700">Ver resumen</p> : null}
+      {href ? <p className="mt-4 text-sm font-black text-slate-950">Ver resumen</p> : null}
     </Card>
   );
 

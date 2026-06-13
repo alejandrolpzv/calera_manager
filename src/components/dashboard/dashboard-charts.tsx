@@ -3,11 +3,11 @@
 import { Card } from "@/components/ui/card";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 
-const chartColors = ["#0f766e", "#14b8a6", "#f59e0b", "#f97316", "#475569", "#1d4ed8"];
+const chartColors = ["#087f6f", "#2bbbad", "#f4a51c", "#e86f1b", "#111827", "#8a6f3d"];
 
 function EmptyChart({ message = "No hay datos suficientes todavia." }: { message?: string }) {
   return (
-    <div className="flex h-64 items-center justify-center rounded-3xl bg-slate-50 text-center text-sm text-slate-500">
+    <div className="flex h-64 items-center justify-center rounded-[26px] bg-white/70 text-center text-sm font-semibold text-slate-500 ring-1 ring-slate-900/5">
       {message}
     </div>
   );
@@ -42,7 +42,7 @@ function DonutChart({ data }: { data: Array<{ name: string; value: number }> }) 
   return (
     <div className="grid gap-4 sm:grid-cols-[220px_1fr] sm:items-center">
       <svg viewBox="0 0 220 220" role="img" aria-label="Gastos por categoria" className="mx-auto h-56 w-56">
-        <circle cx="110" cy="110" r={radius} fill="none" stroke="#f1f5f9" strokeWidth="32" />
+        <circle cx="110" cy="110" r={radius} fill="none" stroke="#eee7da" strokeWidth="32" />
         {segments.map(({ item, dash, offset }, index) => (
           <circle
             key={`${item.name}-${index}`}
@@ -78,7 +78,7 @@ function DonutChart({ data }: { data: Array<{ name: string; value: number }> }) 
               />
               <span className="truncate">{item.name}</span>
             </span>
-            <span className="font-bold text-slate-950">{formatCurrency(item.value)}</span>
+            <span className="font-black text-slate-950">{formatCurrency(item.value)}</span>
           </div>
         ))}
       </div>
@@ -168,10 +168,10 @@ function LineTrendChart({ data }: { data: Array<{ label: string; production: num
       >
         <line x1={paddingX} y1={height - paddingY} x2={width - paddingX} y2={height - paddingY} stroke="#e2e8f0" />
         <line x1={paddingX} y1={paddingY} x2={paddingX} y2={height - paddingY} stroke="#e2e8f0" />
-        <path d={path} fill="none" stroke="#1d4ed8" strokeLinecap="round" strokeLinejoin="round" strokeWidth="5" />
+        <path d={path} fill="none" stroke="#087f6f" strokeLinecap="round" strokeLinejoin="round" strokeWidth="5" />
         {points.map((point, index) => (
           <g key={`${point.label}-${index}`}>
-            <circle cx={point.x} cy={point.y} r="6" fill="#1d4ed8">
+            <circle cx={point.x} cy={point.y} r="6" fill="#087f6f">
               <title>{`${point.label}: ${formatNumber(point.production)}`}</title>
             </circle>
             <text x={point.x} y={height - 8} textAnchor="middle" className="fill-slate-500 text-xs">
@@ -195,25 +195,25 @@ export function DashboardCharts({
 }) {
   return (
     <div className="grid min-w-0 gap-6 xl:grid-cols-[1.1fr_1fr]">
-      <Card className="min-w-0 p-5">
+      <Card className="control-ruler min-w-0 p-5 pt-6">
         <div className="mb-5">
-          <h3 className="text-lg font-bold text-slate-950">Gastos por categoria</h3>
+          <h3 className="text-xl font-black tracking-[-0.035em] text-slate-950">Gastos por categoria</h3>
           <p className="text-sm text-slate-500">Distribucion mensual de costos para control rapido.</p>
         </div>
         <DonutChart data={expensesByCategory} />
       </Card>
 
-      <Card className="min-w-0 p-5">
+      <Card className="control-ruler min-w-0 p-5 pt-6">
         <div className="mb-5">
-          <h3 className="text-lg font-bold text-slate-950">Cobros vs gastos</h3>
+          <h3 className="text-xl font-black tracking-[-0.035em] text-slate-950">Cobros vs gastos</h3>
           <p className="text-sm text-slate-500">Movimiento de caja de los ultimos 14 dias.</p>
         </div>
         <BarComparisonChart data={incomeVsExpenses} />
       </Card>
 
-      <Card className="min-w-0 p-5 xl:col-span-2">
+      <Card className="control-ruler min-w-0 p-5 pt-6 xl:col-span-2">
         <div className="mb-5">
-          <h3 className="text-lg font-bold text-slate-950">Produccion en el tiempo</h3>
+          <h3 className="text-xl font-black tracking-[-0.035em] text-slate-950">Produccion en el tiempo</h3>
           <p className="text-sm text-slate-500">Tendencia de salida diaria en los ultimos 14 dias.</p>
         </div>
         <LineTrendChart data={productionOverTime} />

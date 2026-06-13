@@ -39,12 +39,14 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-md p-6 sm:p-8">
+    <Card className="control-ruler w-full max-w-md p-6 pt-7 sm:p-8 sm:pt-9">
       <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-700">
+        <p className="text-xs font-black uppercase tracking-[0.3em] text-teal-700">
           Acceso movil primero
         </p>
-        <h1 className="mt-2 text-3xl font-extrabold text-slate-950">Inicia sesion en la planta</h1>
+        <h1 className="mt-2 text-4xl font-black tracking-[-0.055em] text-slate-950">
+          Inicia sesion en la planta
+        </h1>
         <p className="mt-3 text-sm leading-6 text-slate-600">
           Usa primero la cuenta inicial de administrador u operador y luego conecta tu
           propia base de datos de produccion.
@@ -67,7 +69,11 @@ export function LoginForm() {
           <Input id="password" name="password" type="password" required />
         </div>
 
-        {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}
+        {error ? (
+          <p className="rounded-[18px] bg-red-50 px-4 py-3 text-sm font-bold text-red-700 ring-1 ring-red-100">
+            {error}
+          </p>
+        ) : null}
 
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Entrando..." : "Entrar al sistema"}
